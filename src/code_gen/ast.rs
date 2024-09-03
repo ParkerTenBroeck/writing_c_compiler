@@ -11,11 +11,13 @@ pub struct FunctionDef<'a> {
 
 #[derive(Debug)]
 pub enum Instruction {
-    Mov { from: Operand, to: Operand },
+    Mov { src: Operand, dest: Operand },
+    UnaryOp{ op: UnaryOp, in_place: Operand},
+    AllocStack(usize),
     Ret,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Operand {
     Imm(i32),
     Reg(Register),
@@ -23,14 +25,26 @@ pub enum Operand {
     Stack(usize)
 }
 
+impl Operand{
+    pub fn is_mem(&self) -> bool{
+        match self{
+            Operand::Imm(_) => false,
+            Operand::Reg(_) => false,
+            Operand::Pseudo(_) => true,
+            Operand::Stack(_) => true,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum UnaryOp{
     Neg,
     Not
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Register {
     Eax,
-    Ax,
-    R10 
+    Rax,
+    R10, 
 }

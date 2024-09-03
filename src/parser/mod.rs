@@ -81,7 +81,7 @@ impl<'a> Parser<'a> {
 
     pub fn parse(mut self) -> Result<ast::Program<'a>, Vec<ParserError<'a>>> {
         let err = self.parse_impl();
-        while let Some(_) = self.next_tok() {}
+        while self.next_tok().is_some() {}
         match err {
             Ok(ok) => {
                 if self.errors.is_empty() {
