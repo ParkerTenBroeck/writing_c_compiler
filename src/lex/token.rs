@@ -1,6 +1,6 @@
 use super::Number;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Token<'a> {
     LPar,
     RPar,
@@ -23,6 +23,8 @@ pub enum Token<'a> {
     LogicalAnd,
     LogicalOr,
     LogicalNot,
+    Dec,
+    Inc,
 
     Dot,
     Comma,

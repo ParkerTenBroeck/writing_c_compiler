@@ -1,3 +1,3 @@
 int main(void){
-    return 'H';
+    return -~(((2)));
 }

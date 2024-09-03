@@ -1,60 +1,58 @@
 pub mod ast;
 
+use crate::tacky;
+
 pub fn asm_gen(
     out: impl std::fmt::Write,
-    ast: crate::parser::ast::TopLevel<'_>,
+    ast: crate::tacky::ast::Program<'_>,
 ) -> std::fmt::Result {
-    let ast = gen::gen(ast);
+    let ast = gen::AsmGen::new().gen(ast);
     emmision::AsmEmission::new().emit_asm(out, ast)
 }
 
 pub mod gen {
-    use crate::{code_gen, parser};
+    use crate::{code_gen, tacky};
 
-    pub fn gen(ast: parser::ast::TopLevel) -> code_gen::ast::FunctionDef {
-        match ast {
-            parser::ast::TopLevel::FunctionDef(func) => gen_function_def(func),
-        }
+    pub struct AsmGen{
+
     }
 
-    fn gen_function_def(ast: parser::ast::FunctionDef) -> code_gen::ast::FunctionDef {
-        let mut ins = Vec::new();
-        gen_statement(&mut ins, ast.body);
-        ins.push(code_gen::ast::Instruction::Ret);
-        code_gen::ast::FunctionDef {
-            name: ast.ident,
-            instructions: ins,
+    impl AsmGen{
+        pub fn new() -> Self{
+            Self{}
         }
-    }
 
-    fn gen_statement(ins: &mut Vec<code_gen::ast::Instruction>, body: parser::ast::Statement<'_>) {
-        match body {
-            parser::ast::Statement::Return(expr) => {
-                gen_expr(ins, expr);
-                ins.push(code_gen::ast::Instruction::Ret);
+        pub fn gen<'a>(&mut self, ast: tacky::ast::Program<'a>) -> code_gen::ast::Program<'a> {
+            match ast {
+                tacky::ast::Program::FunctionDef(func) => code_gen::ast::Program::FunctionDef(self.gen_function_def(func)),
             }
         }
-    }
+    
+        fn gen_function_def<'a>(&mut self, ast: tacky::ast::FunctionDef<'a>) -> code_gen::ast::FunctionDef<'a> {
+            let mut ins = Vec::new();
+            self.gen_instructions(&mut ins, ast.instructions);
+            ins.push(code_gen::ast::Instruction::Ret);
+            code_gen::ast::FunctionDef {
+                name: ast.name,
+                instructions: ins,
+            }
+        }
+    
+        fn gen_instructions(&mut self, ins: &mut Vec<code_gen::ast::Instruction>, ins_in: Vec<tacky::ast::Instruction>) {
+            for tacky in ins_in{
+                self.gen_instruction(ins, tacky)
+            }
+        }
 
-    fn gen_expr(ins: &mut Vec<code_gen::ast::Instruction>, expr: parser::ast::Expr<'_>) {
-        match expr {
-            parser::ast::Expr::Constant(val) => {
-                let val = match val {
-                    parser::ast::Literal::Number(num) => num.get_num().parse::<i32>().unwrap(),
-                    parser::ast::Literal::Char(char) => char as i32,
-                    parser::ast::Literal::Bool(bool) => {
-                        if bool {
-                            1
-                        } else {
-                            0
-                        }
-                    }
-                    parser::ast::Literal::String(_) => todo!(),
-                };
-                ins.push(code_gen::ast::Instruction::Mov {
-                    from: code_gen::ast::Operand::Imm(val),
-                    to: code_gen::ast::Operand::Reg(code_gen::ast::Register::Eax),
-                })
+        fn gen_instruction(&mut self, ins: &mut Vec<code_gen::ast::Instruction>, ins_in: tacky::ast::Instruction) {
+            match ins_in{
+                tacky::ast::Instruction::Return(val) => {
+                    ins.push(code_gen::ast::Instruction::Mov { from: (), to: code_gen::ast::Operand::Reg(code_gen::ast::Register::Eax) });
+                    ins.push(code_gen::ast::Instruction::Ret);
+                },
+                tacky::ast::Instruction::Unary { op, dest, src } => {
+
+                },
             }
         }
     }
@@ -71,17 +69,30 @@ pub mod emmision {
         pub fn emit_asm(
             &mut self,
             mut out: impl std::fmt::Write,
-            ast: code_gen::ast::FunctionDef<'_>,
+            ast: code_gen::ast::Program<'_>,
         ) -> std::fmt::Result {
-            writeln!(out, ".global {:}\n{:}:", ast.name, ast.name)?;
 
-            for inst in ast.instructions {
+            match ast{
+                code_gen::ast::Program::FunctionDef(func) => self.emit_function(&mut out, func)?,
+            }
+
+            out.write_str(r#".section .note.GNU-stack,"",@progbits"#)?;
+            out.write_str("\n")?;
+            Ok(())
+        }
+        fn emit_function(
+            &mut self,
+            mut out: impl std::fmt::Write,
+            func: code_gen::ast::FunctionDef
+        ) -> std::fmt::Result{
+            writeln!(out, ".global {:}\n{:}:", func.name, func.name)?;
+
+            for inst in func.instructions {
                 self.emit_instruction(&mut out, inst)?;
             }
             out.write_str("\n")?;
 
-            out.write_str(r#".section .note.GNU-stack,"",@progbits"#)?;
-            out.write_str("\n")?;
+
             Ok(())
         }
         fn emit_instruction(
@@ -110,7 +121,11 @@ pub mod emmision {
                 code_gen::ast::Operand::Imm(imm) => write!(out, "${imm}"),
                 code_gen::ast::Operand::Reg(reg) => match reg {
                     code_gen::ast::Register::Eax => out.write_str("%eax"),
+                    code_gen::ast::Register::Ax => todo!(),
+                    code_gen::ast::Register::R10 => todo!(),
                 },
+                code_gen::ast::Operand::Pseudo(_) => todo!(),
+                code_gen::ast::Operand::Stack(_) => todo!(),
             }
         }
     }

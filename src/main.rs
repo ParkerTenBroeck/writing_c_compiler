@@ -5,6 +5,7 @@ use clap::{arg, command, Parser, ValueEnum};
 pub mod code_gen;
 pub mod lex;
 pub mod parser;
+pub mod tacky;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -21,9 +22,11 @@ struct Cli {
 enum Mode {
     /// run the lexer, but stop before parsing
     Lex,
-    /// run the lexer and parser, but stop before assembly generation
+    /// run the lexer and parser, but stop before intermediate generation
     Parse,
-    /// run the lexer and parser, but stop before assembly generation
+    /// run the lexer, parser, and tacky, but stop before code generation
+    Tacky,
+    /// run the lexer, parser, tacky, and codegen, but stop before assembly generation
     Codegen,
 }
 
@@ -62,9 +65,16 @@ fn main() -> Result<(), ()> {
             }
             return Ok(());
         }
+        Some(Mode::Tacky) => {
+            match parser::Parser::new(&input).parse() {
+                Ok(program) => println!("{:#?}", tacky::TackyGen::new().ast_to_tacky(program)),
+                Err(errors) => return Err(println!("{errors:#?}")),
+            }
+            return Ok(());
+        }
         Some(Mode::Codegen) => {
             match parser::Parser::new(&input).parse() {
-                Ok(program) => println!("{:#?}", code_gen::gen::gen(program)),
+                Ok(program) => println!("{:#?}", code_gen::gen::AsmGen::new().gen(tacky::TackyGen::new().ast_to_tacky(program))),
                 Err(errors) => return Err(println!("{errors:#?}")),
             }
             return Ok(());
@@ -78,10 +88,12 @@ fn main() -> Result<(), ()> {
         Err(errors) => return Err(println!("{errors:#?}")),
     };
     let mut out = String::new();
+    let program = tacky::TackyGen::new().ast_to_tacky(program);
     code_gen::asm_gen(&mut out, program).unwrap();
     std::fs::write(&output, out).unwrap();
     std::process::Command::new("gcc")
-    .arg(output)
-    .status().unwrap();
+        .arg(output)
+        .status()
+        .unwrap();
     Ok(())
 }

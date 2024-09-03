@@ -1,13 +1,13 @@
 use crate::lex::Number;
 
 #[derive(Debug)]
-pub enum TopLevel<'a> {
+pub enum Program<'a> {
     FunctionDef(FunctionDef<'a>),
 }
 
 #[derive(Debug)]
 pub struct FunctionDef<'a> {
-    pub ident: &'a str,
+    pub name: &'a str,
     pub body: Statement<'a>,
 }
 
@@ -19,6 +19,18 @@ pub enum Statement<'a> {
 #[derive(Debug)]
 pub enum Expr<'a> {
     Constant(Literal<'a>),
+    Unary(UnaryOp, Box<Expr<'a>>),
+}
+
+#[derive(Debug)]
+pub enum UnaryOp {
+    Minus,
+    Not,
+
+    PreInc,
+    PreDec,
+    PostInc,
+    PostDec
 }
 
 #[derive(Debug)]

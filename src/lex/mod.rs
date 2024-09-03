@@ -352,11 +352,13 @@ impl<'a> Iterator for Lexer<'a> {
                 },
                 State::Plus => match c {
                     Some('=') => ret = Some(Ok(Token::PlusEq)),
+                    Some('+') => ret = Some(Ok(Token::Inc)),
                     _ => unconsume_ret!(self, Ok(Token::Plus)),
                 },
                 State::Minus => match c {
                     Some('>') => ret = Some(Ok(Token::SmallRightArrow)),
                     Some('=') => ret = Some(Ok(Token::MinusEq)),
+                    Some('-') => ret = Some(Ok(Token::Dec)),
                     _ => unconsume_ret!(self, Ok(Token::Minus)),
                 },
                 State::Times => match c {

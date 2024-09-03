@@ -37,6 +37,30 @@ macro_rules! expect_tok {
     };
 }
 
+macro_rules! consume_if {
+    (@consume, $self:ident, $tok:pat => $blk:expr) => {
+        match $self.next_tok(){
+            $tok => $blk,
+            _ => unreachable!(),
+        }
+    };
+    (@, $self:ident, $tok:pat => $blk:expr) => {
+        $blk
+    };
+    ($self:ident, $( $(@$consume:ident)? $tok:pat => $blk:expr $(,)?)* $(,)?) => {
+        match $self.peek_next_tok(){
+            $(
+                #[allow(unused)]
+                $tok => {
+                    consume_if!(@$(
+                        $consume
+                    )?, $self, $tok => $blk)
+                },
+            )*
+        }
+    };
+}
+
 macro_rules! is_tok {
     ($self:ident, $tok:pat) => {
         match self.peek_next_tok() {
@@ -55,7 +79,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(mut self) -> Result<ast::TopLevel<'a>, Vec<ParserError<'a>>> {
+    pub fn parse(mut self) -> Result<ast::Program<'a>, Vec<ParserError<'a>>> {
         let err = self.parse_impl();
         while let Some(_) = self.next_tok() {}
         match err {
@@ -103,8 +127,8 @@ impl<'a> Parser<'a> {
         None
     }
 
-    fn parse_impl(&mut self) -> Result<ast::TopLevel<'a>, ()> {
-        Ok(ast::TopLevel::FunctionDef(self.parse_function()?))
+    fn parse_impl(&mut self) -> Result<ast::Program<'a>, ()> {
+        Ok(ast::Program::FunctionDef(self.parse_function()?))
     }
 
     fn parse_function(&mut self) -> Result<ast::FunctionDef<'a>, ()> {
@@ -116,7 +140,7 @@ impl<'a> Parser<'a> {
         expect_tok!(self, Token::LBrace)?;
         let body = self.parse_statement()?;
         expect_tok!(self, Token::RBrace)?;
-        Ok(ast::FunctionDef { ident, body })
+        Ok(ast::FunctionDef { name: ident, body })
     }
 
     fn parse_statement(&mut self) -> Result<ast::Statement<'a>, ()> {
@@ -145,23 +169,43 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> Result<ast::Expr<'a>, ()> {
-        Ok(ast::Expr::Constant(self.parse_literal()?))
+        self.parse_expression_14()
     }
 
-    fn parse_literal(&mut self) -> Result<ast::Literal<'a>, ()> {
-        match self.next_tok() {
-            Some(tok!(Token::NumericLiteral(num))) => Ok(ast::Literal::Number(num)),
-            Some(tok!(Token::FalseLiteral)) => Ok(ast::Literal::Bool(false)),
-            Some(tok!(Token::TrueLiteral)) => Ok(ast::Literal::Bool(true)),
-            Some(tok!(Token::CharLiteral(num))) => Ok(ast::Literal::Char(num)),
-            Some(tok) => {
-                self.errors.push(ParserError::UnexpectedToken(tok));
+    fn parse_expression_14(&mut self) -> Result<ast::Expr<'a>, ()> {
+        consume_if!(self,
+            @consume Some(tok!(Token::Minus)) => Ok(ast::Expr::Unary(ast::UnaryOp::Minus, Box::new(self.parse_expression_14()?))),
+            @consume Some(tok!(Token::BitwiseNot)) => Ok(ast::Expr::Unary(ast::UnaryOp::Not, Box::new(self.parse_expression_14()?))),
+
+            @consume Some(tok!(Token::Inc)) => Ok(ast::Expr::Unary(ast::UnaryOp::PreInc, Box::new(self.parse_expression_14()?))),
+            @consume Some(tok!(Token::Dec)) => Ok(ast::Expr::Unary(ast::UnaryOp::PreDec, Box::new(self.parse_expression_14()?))),
+
+            _ => self.parse_expression_15()
+        )
+    }
+
+    fn parse_expression_15(&mut self) -> Result<ast::Expr<'a>, ()> {
+        consume_if!(self,
+            @consume Some(tok!(Token::NumericLiteral(num))) => Ok(ast::Expr::Constant(ast::Literal::Number(num))),
+            @consume Some(tok!(Token::FalseLiteral)) => Ok(ast::Expr::Constant(ast::Literal::Bool(false))),
+            @consume Some(tok!(Token::TrueLiteral)) => Ok(ast::Expr::Constant(ast::Literal::Bool(true))),
+            @consume Some(tok!(Token::CharLiteral(char))) => Ok(ast::Expr::Constant(ast::Literal::Char(char))),
+
+            @consume Some(tok!(Token::LPar)) => {
+                let expr = self.parse_expression()?;
+                expect_tok!(self, Token::RPar)?;
+                Ok(expr)
+            },
+
+            @consume Some(tok) => {
+                let err = ParserError::UnexpectedToken(tok);
+                self.errors.push(err);
                 Err(())
             }
             None => {
                 self.errors.push(ParserError::ExpectedTokenFoundNone);
                 Err(())
             }
-        }
+        )
     }
 }

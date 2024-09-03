@@ -19,9 +19,18 @@ pub enum Instruction {
 pub enum Operand {
     Imm(i32),
     Reg(Register),
+    Pseudo(usize),
+    Stack(usize)
+}
+
+pub enum UnaryOp{
+    Neg,
+    Not
 }
 
 #[derive(Debug)]
 pub enum Register {
     Eax,
+    Ax,
+    R10 
 }
