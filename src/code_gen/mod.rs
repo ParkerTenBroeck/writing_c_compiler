@@ -69,6 +69,7 @@ pub mod gen {
                     }, in_place: src });
                     ins.push(code_gen::ast::Instruction::Mov { src, dest })
                 },
+                tacky::ast::Instruction::Binary { op, lhs, rhs, dest } => todo!(),
             }
         }
 

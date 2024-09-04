@@ -54,7 +54,7 @@ impl TackyGen{
                 let dest = self.next_tmp();
                 ins.push(ast::Instruction::Unary { op: 
                     match op{
-                        parser::ast::UnaryOp::Minus => ast::UnaryOp::Minus,
+                        parser::ast::UnaryOp::Neg => ast::UnaryOp::Minus,
                         parser::ast::UnaryOp::Not => ast::UnaryOp::Not,
                         parser::ast::UnaryOp::PreInc => ast::UnaryOp::PreInc,
                         parser::ast::UnaryOp::PreDec => ast::UnaryOp::PreDec,
@@ -62,6 +62,21 @@ impl TackyGen{
                         parser::ast::UnaryOp::PostDec => ast::UnaryOp::PostDec,
                     }, dest, src });
                     dest
+            },
+            parser::ast::Expr::Binary { op, lhs, rhs } => {
+                let op =  match op{
+                    parser::ast::BinaryOp::Addition => ast::BinaryOp::Addition,
+                    parser::ast::BinaryOp::Subtract => ast::BinaryOp::Subtract,
+                    parser::ast::BinaryOp::Multiply => ast::BinaryOp::Multiply,
+                    parser::ast::BinaryOp::Divide => ast::BinaryOp::Divide,
+                    parser::ast::BinaryOp::Remainder => ast::BinaryOp::Remainder,
+                };
+
+                let lhs = self.expression_to_tacky(ins, *lhs);
+                let rhs = self.expression_to_tacky(ins, *rhs);
+                let dest = self.next_tmp();
+                ins.push(ast::Instruction::Binary { op, lhs, rhs, dest });
+                dest
             },
         }
     }

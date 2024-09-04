@@ -19,7 +19,23 @@ pub enum Instruction {
         op: UnaryOp,
         dest: Val,
         src: Val,
+    },
+    Binary{
+        op: BinaryOp,
+        lhs: Val,
+        rhs: Val,
+        dest: Val,
     }
+}
+
+
+#[derive(Debug)]
+pub enum BinaryOp {
+    Addition,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
 }
 
 #[derive(Debug)]

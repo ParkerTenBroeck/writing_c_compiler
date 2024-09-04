@@ -20,17 +20,43 @@ pub enum Statement<'a> {
 pub enum Expr<'a> {
     Constant(Literal<'a>),
     Unary(UnaryOp, Box<Expr<'a>>),
+    Binary{
+        op: BinaryOp,
+        lhs: Box<Expr<'a>>,
+        rhs: Box<Expr<'a>>,
+    }
 }
 
 #[derive(Debug)]
 pub enum UnaryOp {
-    Minus,
+    Neg,
     Not,
 
     PreInc,
     PreDec,
     PostInc,
     PostDec
+}
+
+#[derive(Debug)]
+pub enum BinaryOp {
+    Addition,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
+}
+
+impl BinaryOp{
+    pub fn precedence(&self) -> usize{
+        match self{
+            BinaryOp::Addition => 47,
+            BinaryOp::Subtract => 47,
+            BinaryOp::Multiply => 51,
+            BinaryOp::Divide => 51,
+            BinaryOp::Remainder => 51,
+        }
+    }
 }
 
 #[derive(Debug)]

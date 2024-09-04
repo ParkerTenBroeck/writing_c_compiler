@@ -1,3 +1,5 @@
+use std::fmt::Binary;
+
 use crate::lex::{self, Lexer, Spanned, Token};
 
 pub mod ast;
@@ -38,20 +40,20 @@ macro_rules! expect_tok {
 }
 
 macro_rules! consume_if {
-    (@consume, $self:ident, $tok:pat => $blk:expr) => {
+    (@consume, $self:ident, $tok:pat $(if $if:expr)? => $blk:expr) => {
         match $self.next_tok(){
-            $tok => $blk,
+            $tok $(if $if)? => $blk,
             _ => unreachable!(),
         }
     };
     (@, $self:ident, $tok:pat => $blk:expr) => {
         $blk
     };
-    ($self:ident, $( $(@$consume:ident)? $tok:pat => $blk:expr $(,)?)* $(,)?) => {
+    ($self:ident, $( $(@$consume:ident)? $tok:pat $(if $if:expr)? => $blk:expr $(,)?)* $(,)?) => {
         match $self.peek_next_tok(){
             $(
                 #[allow(unused)]
-                $tok => {
+                $tok $(if $if)? => {
                     consume_if!(@$(
                         $consume
                     )?, $self, $tok => $blk)
@@ -169,12 +171,29 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> Result<ast::Expr<'a>, ()> {
-        self.parse_expression_14()
+        self.parse_expression_13(0)
+    }
+
+    fn parse_expression_13(&mut self, min_prec: usize) -> Result<ast::Expr<'a>, ()>{
+        let mut lhs = self.parse_expression_14()?;
+        loop{
+            let op = consume_if!(self, 
+                @consume Some(tok!(Token::Plus)) if ast::BinaryOp::Addition.precedence() >= min_prec => ast::BinaryOp::Addition,
+                @consume Some(tok!(Token::Minus)) if ast::BinaryOp::Subtract.precedence() >= min_prec => ast::BinaryOp::Subtract,
+                @consume Some(tok!(Token::Star)) if ast::BinaryOp::Multiply.precedence() >= min_prec => ast::BinaryOp::Multiply,
+                @consume Some(tok!(Token::Slash)) if ast::BinaryOp::Divide.precedence() >= min_prec => ast::BinaryOp::Divide,
+                @consume Some(tok!(Token::Percent)) if ast::BinaryOp::Remainder.precedence() >= min_prec => ast::BinaryOp::Remainder,
+                _ => break
+            );
+            let rhs = self.parse_expression_13(op.precedence() + 1)?;
+            lhs = ast::Expr::Binary { op, lhs: Box::new(lhs), rhs: Box::new(rhs) }
+        }
+        Ok(lhs)
     }
 
     fn parse_expression_14(&mut self) -> Result<ast::Expr<'a>, ()> {
         consume_if!(self,
-            @consume Some(tok!(Token::Minus)) => Ok(ast::Expr::Unary(ast::UnaryOp::Minus, Box::new(self.parse_expression_14()?))),
+            @consume Some(tok!(Token::Minus)) => Ok(ast::Expr::Unary(ast::UnaryOp::Neg, Box::new(self.parse_expression_14()?))),
             @consume Some(tok!(Token::BitwiseNot)) => Ok(ast::Expr::Unary(ast::UnaryOp::Not, Box::new(self.parse_expression_14()?))),
 
             @consume Some(tok!(Token::Inc)) => Ok(ast::Expr::Unary(ast::UnaryOp::PreInc, Box::new(self.parse_expression_14()?))),
