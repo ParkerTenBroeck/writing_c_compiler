@@ -32,6 +32,10 @@ enum Mode {
 
 fn main() -> Result<(), ()> {
     let cli = Cli::parse();
+    // let cli = Cli{
+    //     input: "./tests/test.c".into(),
+    //     mode: None,
+    // };
 
     let input = cli.input;
     let mut output = input.clone();

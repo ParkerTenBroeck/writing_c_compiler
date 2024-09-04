@@ -12,12 +12,13 @@ pub struct FunctionDef<'a> {
 #[derive(Debug)]
 pub enum Instruction {
     Mov { src: Operand, dest: Operand },
-    UnaryOp{ op: UnaryOp, in_place: Operand},
+    UnaryOp{ op: UnaryOp, src: Operand, dest: Operand},
     AllocStack(usize),
     Ret,
+    BinaryOp { op: BinaryOp, lhs: Operand, rhs: Operand, dest: Operand },
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Operand {
     Imm(i32),
     Reg(Register),
@@ -34,6 +35,15 @@ impl Operand{
             Operand::Stack(_) => true,
         }
     }
+    
+    pub fn is_const(&self) -> bool {
+        match self{
+            Operand::Imm(_) => true,
+            Operand::Reg(_) => false,
+            Operand::Pseudo(_) => false,
+            Operand::Stack(_) => false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -42,7 +52,16 @@ pub enum UnaryOp{
     Not
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
+pub enum BinaryOp{
+    Addition,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Register {
     Eax,
     Rax,
