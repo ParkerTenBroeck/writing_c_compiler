@@ -1,5 +1,8 @@
 #[derive(Debug)]
-pub enum Program<'a> {
+pub struct Program<'a> (pub Vec<TopLevel<'a>>);
+
+#[derive(Debug)]
+pub enum TopLevel<'a>{
     FunctionDef(FunctionDef<'a>),
 }
 
@@ -12,10 +15,12 @@ pub struct FunctionDef<'a> {
 #[derive(Debug)]
 pub enum Instruction {
     Mov { src: Operand, dest: Operand },
-    UnaryOp{ op: UnaryOp, src: Operand, dest: Operand},
+    UnaryOp{ op: UnaryOp, src_dest: Operand},
     AllocStack(usize),
     Ret,
-    BinaryOp { op: BinaryOp, lhs: Operand, rhs: Operand, dest: Operand },
+    Cdq,
+    Idiv{ rhs: Operand },
+    BinaryOp { op: BinaryOp, lhs_dest: Operand, rhs: Operand},
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,7 +36,7 @@ impl Operand{
         match self{
             Operand::Imm(_) => false,
             Operand::Reg(_) => false,
-            Operand::Pseudo(_) => true,
+            Operand::Pseudo(_) => false,
             Operand::Stack(_) => true,
         }
     }
@@ -52,18 +57,22 @@ pub enum UnaryOp{
     Not
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum BinaryOp{
     Addition,
     Subtract,
     Multiply,
-    Divide,
-    Remainder,
+    BitXor,
+    BitOr,
+    BitAnd,
+    ShiftLeft,
+    ShiftRight,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Register {
-    Eax,
-    Rax,
-    R10, 
+    AX,
+    DX,
+    R10,
+    R11, 
 }

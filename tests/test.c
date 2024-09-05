@@ -1,3 +1,3 @@
 int main(void){
-    return - - 2;
+    return 13 % 2 + (13 / 2) * 2;
 }

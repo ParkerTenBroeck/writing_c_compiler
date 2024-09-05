@@ -1,7 +1,10 @@
 
 
 #[derive(Debug)]
-pub enum Program<'a> {
+pub struct Program<'a> (pub Vec<TopLevel<'a>>);
+
+#[derive(Debug)]
+pub enum TopLevel<'a>{
     FunctionDef(FunctionDef<'a>),
 }
 
@@ -36,12 +39,17 @@ pub enum BinaryOp {
     Multiply,
     Divide,
     Remainder,
+    BitXor,
+    BitOr,
+    BitAnd,
+    ShiftRight,
+    ShiftLeft,
 }
 
 #[derive(Debug)]
 pub enum UnaryOp {
     Minus,
-    Not,
+    BitNot,
 
     PreInc,
     PreDec,

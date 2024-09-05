@@ -117,7 +117,7 @@ fn ident(ident: &str) -> Token {
         "while" => Token::While,
         "loop" => Token::Loop,
         "if" => Token::If,
-        o => Token::Ident(o.into()),
+        o => Token::Ident(o),
     }
 }
 
@@ -373,7 +373,7 @@ impl<'a> Iterator for Lexer<'a> {
                 },
                 State::Mod => match c {
                     Some('=') => ret = Some(Ok(Token::ModuloEq)),
-                    _ => unconsume_ret!(self, Ok(Token::Modulo)),
+                    _ => unconsume_ret!(self, Ok(Token::Percent)),
                 },
                 State::Equal => match c {
                     Some('>') => ret = Some(Ok(Token::BigRightArrow)),
@@ -410,7 +410,7 @@ impl<'a> Iterator for Lexer<'a> {
                 State::And => match c {
                     Some('=') => ret = Some(Ok(Token::AndEq)),
                     Some('&') => ret = Some(Ok(Token::LogicalAnd)),
-                    _ => unconsume_ret!(self, Ok(Token::BitwiseXor)),
+                    _ => unconsume_ret!(self, Ok(Token::Ampersand)),
                 },
                 State::Xor => match c {
                     Some('=') => ret = Some(Ok(Token::XorEq)),

@@ -1,5 +1,3 @@
-use std::fmt::Binary;
-
 use crate::lex::{self, Lexer, Spanned, Token};
 
 pub mod ast;
@@ -130,7 +128,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_impl(&mut self) -> Result<ast::Program<'a>, ()> {
-        Ok(ast::Program::FunctionDef(self.parse_function()?))
+        Ok(ast::Program(vec![ast::TopLevel::FunctionDef(self.parse_function()?)]))
     }
 
     fn parse_function(&mut self) -> Result<ast::FunctionDef<'a>, ()> {
@@ -180,9 +178,27 @@ impl<'a> Parser<'a> {
             let op = consume_if!(self, 
                 @consume Some(tok!(Token::Plus)) if ast::BinaryOp::Addition.precedence() >= min_prec => ast::BinaryOp::Addition,
                 @consume Some(tok!(Token::Minus)) if ast::BinaryOp::Subtract.precedence() >= min_prec => ast::BinaryOp::Subtract,
+
                 @consume Some(tok!(Token::Star)) if ast::BinaryOp::Multiply.precedence() >= min_prec => ast::BinaryOp::Multiply,
                 @consume Some(tok!(Token::Slash)) if ast::BinaryOp::Divide.precedence() >= min_prec => ast::BinaryOp::Divide,
                 @consume Some(tok!(Token::Percent)) if ast::BinaryOp::Remainder.precedence() >= min_prec => ast::BinaryOp::Remainder,
+
+                @consume Some(tok!(Token::ShiftLeft)) if ast::BinaryOp::ShiftLeft.precedence() >= min_prec => ast::BinaryOp::ShiftLeft,
+                @consume Some(tok!(Token::ShiftRight)) if ast::BinaryOp::ShiftRight.precedence() >= min_prec => ast::BinaryOp::ShiftRight,
+
+                @consume Some(tok!(Token::Equals)) if ast::BinaryOp::Eq.precedence() >= min_prec => ast::BinaryOp::Eq,
+                @consume Some(tok!(Token::NotEquals)) if ast::BinaryOp::Ne.precedence() >= min_prec => ast::BinaryOp::Ne,
+
+                @consume Some(tok!(Token::LessThan)) if ast::BinaryOp::Lt.precedence() >= min_prec => ast::BinaryOp::Lt,
+                @consume Some(tok!(Token::LessThanEq)) if ast::BinaryOp::Lte.precedence() >= min_prec => ast::BinaryOp::Lte,
+                @consume Some(tok!(Token::GreaterThan)) if ast::BinaryOp::Gt.precedence() >= min_prec => ast::BinaryOp::Gt,
+                @consume Some(tok!(Token::GreaterThanEq)) if ast::BinaryOp::Gte.precedence() >= min_prec => ast::BinaryOp::Gte,
+
+                @consume Some(tok!(Token::Ampersand)) if ast::BinaryOp::BitAnd.precedence() >= min_prec => ast::BinaryOp::BitAnd,
+                @consume Some(tok!(Token::BitwiseXor)) if ast::BinaryOp::BitXor.precedence() >= min_prec => ast::BinaryOp::BitXor,
+                @consume Some(tok!(Token::BitwiseOr)) if ast::BinaryOp::BitOr.precedence() >= min_prec => ast::BinaryOp::BitOr,
+                @consume Some(tok!(Token::LogicalAnd)) if ast::BinaryOp::LogAnd.precedence() >= min_prec => ast::BinaryOp::LogAnd,
+                @consume Some(tok!(Token::LogicalOr)) if ast::BinaryOp::LogOr.precedence() >= min_prec => ast::BinaryOp::LogOr,
                 _ => break
             );
             let rhs = self.parse_expression_13(op.precedence() + 1)?;

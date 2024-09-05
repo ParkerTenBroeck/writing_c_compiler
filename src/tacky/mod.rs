@@ -2,6 +2,7 @@ pub mod ast;
 
 use crate::parser;
 
+#[derive(Default)]
 pub struct TackyGen{
     tmp: usize,
 }
@@ -19,11 +20,19 @@ impl TackyGen{
     }
 
     pub fn ast_to_tacky<'a>(&mut self, input: parser::ast::Program<'a>) -> ast::Program<'a>{
+        let mut prog = ast::Program(Vec::new());
+        for top in input.0{
+            prog.0.push(self.top_level_to_tacky(top));
+        }
+        prog
+    }
+
+    pub fn top_level_to_tacky<'a>(&mut self, input: parser::ast::TopLevel<'a>) -> ast::TopLevel<'a>{
         match input{
-            parser::ast::Program::FunctionDef(func) => {
+            parser::ast::TopLevel::FunctionDef(func) => {
                 let mut ins = Vec::new();
                 self.statement_to_tacky(&mut ins, func.body);
-                ast::Program::FunctionDef(ast::FunctionDef{
+                ast::TopLevel::FunctionDef(ast::FunctionDef{
                     name: func.name,
                     temps: self.tmp,
                     instructions: ins
@@ -55,7 +64,7 @@ impl TackyGen{
                 ins.push(ast::Instruction::Unary { op: 
                     match op{
                         parser::ast::UnaryOp::Neg => ast::UnaryOp::Minus,
-                        parser::ast::UnaryOp::Not => ast::UnaryOp::Not,
+                        parser::ast::UnaryOp::Not => ast::UnaryOp::BitNot,
                         parser::ast::UnaryOp::PreInc => ast::UnaryOp::PreInc,
                         parser::ast::UnaryOp::PreDec => ast::UnaryOp::PreDec,
                         parser::ast::UnaryOp::PostInc => ast::UnaryOp::PostInc,
@@ -70,6 +79,14 @@ impl TackyGen{
                     parser::ast::BinaryOp::Multiply => ast::BinaryOp::Multiply,
                     parser::ast::BinaryOp::Divide => ast::BinaryOp::Divide,
                     parser::ast::BinaryOp::Remainder => ast::BinaryOp::Remainder,
+
+                    parser::ast::BinaryOp::BitAnd => ast::BinaryOp::BitAnd,
+                    parser::ast::BinaryOp::BitOr => ast::BinaryOp::BitOr,
+                    parser::ast::BinaryOp::BitXor => ast::BinaryOp::BitXor,
+
+                    parser::ast::BinaryOp::ShiftLeft => ast::BinaryOp::ShiftLeft,
+                    parser::ast::BinaryOp::ShiftRight => ast::BinaryOp::ShiftRight,
+                    _ => todo!()
                 };
 
                 let lhs = self.expression_to_tacky(ins, *lhs);

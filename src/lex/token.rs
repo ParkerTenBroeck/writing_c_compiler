@@ -19,7 +19,6 @@ pub enum Token<'a> {
     BitwiseNot,
     ShiftLeft,
     ShiftRight,
-    Percent,
     LogicalAnd,
     LogicalOr,
     LogicalNot,
@@ -45,7 +44,7 @@ pub enum Token<'a> {
     Assignment,
 
     ModuloEq,
-    Modulo,
+    Percent,
     DivideEq,
     TimesEq,
     MinusEq,
