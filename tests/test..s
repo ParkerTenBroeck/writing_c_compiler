@@ -4,9 +4,11 @@ main:
 	movq %rsp, %rbp
 
 	subq $4, %rsp
-	movl $2, %r10d
-	cmpl $0, %r10d
+	movl $0, %r10d
+	cmpl $2, %r10d
 	movl $0, -4(%rbp)
+	movl $0, %r10d
+	cmpl $2, %r10d
 	sete -4(%rbp)
 	movl -4(%rbp), %eax
 	movq %rbp, %rsp

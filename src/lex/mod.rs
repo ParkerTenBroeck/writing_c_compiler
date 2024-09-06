@@ -377,8 +377,8 @@ impl<'a> Iterator for Lexer<'a> {
                 },
                 State::Equal => match c {
                     Some('>') => ret = Some(Ok(Token::BigRightArrow)),
-                    Some('=') => ret = Some(Ok(Token::Assignment)),
-                    _ => unconsume_ret!(self, Ok(Token::Equals)),
+                    Some('=') => ret = Some(Ok(Token::Equals)),
+                    _ => unconsume_ret!(self, Ok(Token::Assignment)),
                 },
                 State::Gt => match c {
                     Some('=') => ret = Some(Ok(Token::GreaterThanEq)),
