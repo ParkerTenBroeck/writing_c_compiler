@@ -9,6 +9,7 @@ pub struct Sstr<'a> {
 }
 
 impl<'a> Sstr<'a> {
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(str: &'a str) -> Self {
         Self {
             ptr: str.as_ptr(),

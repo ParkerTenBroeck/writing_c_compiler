@@ -28,33 +28,51 @@ pub enum Instruction {
         lhs: Val,
         rhs: Val,
         dest: Val,
-    }
+    },
+    LocalLabel(Label),
+    Copy{src: Val, dest: Val},
+    Jump{ target: Label },
+    JumpIfZero{cond: Val, target: Label},
+    JumpIfNotZero{cond: Val, target: Label},
 }
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Label(pub usize);
 
 
 #[derive(Debug)]
 pub enum BinaryOp {
     Addition,
     Subtract,
+    
     Multiply,
     Divide,
     Remainder,
+
+    ShiftRight,
+    ShiftLeft,
     BitXor,
     BitOr,
     BitAnd,
-    ShiftRight,
-    ShiftLeft,
+
+    Eq,
+    Ne,
+    Gt,
+    Lt,
+    Gte,
+    Lte,
 }
 
 #[derive(Debug)]
 pub enum UnaryOp {
     Minus,
     BitNot,
+    LogNot,
 
     PreInc,
     PreDec,
     PostInc,
-    PostDec
+    PostDec,
 }
 
 #[derive(Debug, Clone, Copy)]

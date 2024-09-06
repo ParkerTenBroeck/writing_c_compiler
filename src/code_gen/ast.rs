@@ -21,6 +21,11 @@ pub enum Instruction {
     Cdq,
     Idiv{ rhs: Operand },
     BinaryOp { op: BinaryOp, lhs_dest: Operand, rhs: Operand},
+    Cmp{lhs: Operand, rhs: Operand},
+    Jmp{ target: Label },
+    JmpCC{ cnd: CmpKind, target: Label},
+    SetCC{ cnd: CmpKind, dest: Operand},
+    LocalLabel(Label),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,7 +59,8 @@ impl Operand{
 #[derive(Debug)]
 pub enum UnaryOp{
     Neg,
-    Not
+    BitNot,
+    LogNot,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -75,4 +81,17 @@ pub enum Register {
     DX,
     R10,
     R11, 
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Label(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CmpKind{
+    Eq,
+    Ne,
+    Gt,
+    Gte,
+    Lt,
+    Lte
 }

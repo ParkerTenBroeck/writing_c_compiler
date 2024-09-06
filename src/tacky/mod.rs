@@ -4,19 +4,26 @@ use crate::parser;
 
 #[derive(Default)]
 pub struct TackyGen{
-    tmp: usize,
+    tmp_variable: usize,
+    tmp_label: usize,
 }
 
 impl TackyGen{
     pub fn new() -> Self{
         Self { 
-            tmp: 0
+            tmp_variable: 0,
+            tmp_label: 0,
         }
     }
 
-    fn next_tmp(&mut self) -> ast::Val{
-        self.tmp += 1;
-        ast::Val::Var(self.tmp - 1)
+    fn next_tmp_var(&mut self) -> ast::Val{
+        self.tmp_variable += 1;
+        ast::Val::Var(self.tmp_variable - 1)
+    }
+
+    fn next_tmp_label(&mut self) -> ast::Label{
+        self.tmp_label += 1;
+        ast::Label(self.tmp_label - 1)
     }
 
     pub fn ast_to_tacky<'a>(&mut self, input: parser::ast::Program<'a>) -> ast::Program<'a>{
@@ -34,7 +41,7 @@ impl TackyGen{
                 self.statement_to_tacky(&mut ins, func.body);
                 ast::TopLevel::FunctionDef(ast::FunctionDef{
                     name: func.name,
-                    temps: self.tmp,
+                    temps: self.tmp_variable,
                     instructions: ins
                 })
             },
@@ -60,11 +67,12 @@ impl TackyGen{
             }),
             parser::ast::Expr::Unary(op, expr) => {
                 let src = self.expression_to_tacky(ins, *expr);
-                let dest = self.next_tmp();
+                let dest = self.next_tmp_var();
                 ins.push(ast::Instruction::Unary { op: 
                     match op{
                         parser::ast::UnaryOp::Neg => ast::UnaryOp::Minus,
-                        parser::ast::UnaryOp::Not => ast::UnaryOp::BitNot,
+                        parser::ast::UnaryOp::BitNot => ast::UnaryOp::BitNot,
+                        parser::ast::UnaryOp::LogNot => ast::UnaryOp::LogNot,
                         parser::ast::UnaryOp::PreInc => ast::UnaryOp::PreInc,
                         parser::ast::UnaryOp::PreDec => ast::UnaryOp::PreDec,
                         parser::ast::UnaryOp::PostInc => ast::UnaryOp::PostInc,
@@ -86,12 +94,59 @@ impl TackyGen{
 
                     parser::ast::BinaryOp::ShiftLeft => ast::BinaryOp::ShiftLeft,
                     parser::ast::BinaryOp::ShiftRight => ast::BinaryOp::ShiftRight,
-                    _ => todo!()
+
+
+                    parser::ast::BinaryOp::LogAnd => {
+                        let false_branch = self.next_tmp_label();
+                        let end_branch = self.next_tmp_label();
+                        let res = self.next_tmp_var();
+
+                        let lhs = self.expression_to_tacky(ins, *lhs);
+                        ins.push(ast::Instruction::JumpIfZero { cond: lhs, target: false_branch });
+
+                        let rhs = self.expression_to_tacky(ins, *rhs);
+                        ins.push(ast::Instruction::JumpIfZero { cond: rhs, target: false_branch });
+
+                        ins.push(ast::Instruction::Copy { src: ast::Val::Const(1), dest: res });
+                        ins.push(ast::Instruction::Jump { target: end_branch });
+                        ins.push(ast::Instruction::LocalLabel(false_branch));
+                        ins.push(ast::Instruction::Copy { src: ast::Val::Const(0), dest: res });
+                        ins.push(ast::Instruction::LocalLabel(end_branch));
+
+                        return res;
+                    },
+                    parser::ast::BinaryOp::LogOr => {
+                        let true_branch = self.next_tmp_label();
+                        let end_branch = self.next_tmp_label();
+                        let res = self.next_tmp_var();
+
+                        let lhs = self.expression_to_tacky(ins, *lhs);
+                        ins.push(ast::Instruction::JumpIfNotZero { cond: lhs, target: true_branch });
+
+                        let rhs = self.expression_to_tacky(ins, *rhs);
+                        ins.push(ast::Instruction::JumpIfNotZero { cond: rhs, target: true_branch });
+
+                        ins.push(ast::Instruction::Copy { src: ast::Val::Const(0), dest: res });
+                        ins.push(ast::Instruction::Jump { target: end_branch });
+                        ins.push(ast::Instruction::LocalLabel(true_branch));
+                        ins.push(ast::Instruction::Copy { src: ast::Val::Const(1), dest: res });
+                        ins.push(ast::Instruction::LocalLabel(end_branch));
+
+                        return res;
+                    },
+                    
+                    parser::ast::BinaryOp::Eq => ast::BinaryOp::Eq,
+                    parser::ast::BinaryOp::Ne => ast::BinaryOp::Ne,
+
+                    parser::ast::BinaryOp::Gt => ast::BinaryOp::Gt,
+                    parser::ast::BinaryOp::Gte => ast::BinaryOp::Gte,
+                    parser::ast::BinaryOp::Lt => ast::BinaryOp::Lt,
+                    parser::ast::BinaryOp::Lte => ast::BinaryOp::Lte,
                 };
 
                 let lhs = self.expression_to_tacky(ins, *lhs);
                 let rhs = self.expression_to_tacky(ins, *rhs);
-                let dest = self.next_tmp();
+                let dest = self.next_tmp_var();
                 ins.push(ast::Instruction::Binary { op, lhs, rhs, dest });
                 dest
             },

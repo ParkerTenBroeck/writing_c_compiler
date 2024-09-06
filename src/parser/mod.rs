@@ -210,7 +210,8 @@ impl<'a> Parser<'a> {
     fn parse_expression_14(&mut self) -> Result<ast::Expr<'a>, ()> {
         consume_if!(self,
             @consume Some(tok!(Token::Minus)) => Ok(ast::Expr::Unary(ast::UnaryOp::Neg, Box::new(self.parse_expression_14()?))),
-            @consume Some(tok!(Token::BitwiseNot)) => Ok(ast::Expr::Unary(ast::UnaryOp::Not, Box::new(self.parse_expression_14()?))),
+            @consume Some(tok!(Token::BitwiseNot)) => Ok(ast::Expr::Unary(ast::UnaryOp::BitNot, Box::new(self.parse_expression_14()?))),
+            @consume Some(tok!(Token::LogicalNot)) => Ok(ast::Expr::Unary(ast::UnaryOp::LogNot, Box::new(self.parse_expression_14()?))),
 
             @consume Some(tok!(Token::Inc)) => Ok(ast::Expr::Unary(ast::UnaryOp::PreInc, Box::new(self.parse_expression_14()?))),
             @consume Some(tok!(Token::Dec)) => Ok(ast::Expr::Unary(ast::UnaryOp::PreDec, Box::new(self.parse_expression_14()?))),

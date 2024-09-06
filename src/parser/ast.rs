@@ -33,7 +33,8 @@ pub enum Expr<'a> {
 #[derive(Debug)]
 pub enum UnaryOp {
     Neg,
-    Not,
+    BitNot,
+    LogNot,
 
     PreInc,
     PreDec,
