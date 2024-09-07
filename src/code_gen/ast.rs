@@ -1,8 +1,8 @@
 #[derive(Debug)]
-pub struct Program<'a> (pub Vec<TopLevel<'a>>);
+pub struct Program<'a>(pub Vec<TopLevel<'a>>);
 
 #[derive(Debug)]
-pub enum TopLevel<'a>{
+pub enum TopLevel<'a> {
     FunctionDef(FunctionDef<'a>),
 }
 
@@ -14,17 +14,40 @@ pub struct FunctionDef<'a> {
 
 #[derive(Debug)]
 pub enum Instruction {
-    Mov { src: Operand, dest: Operand },
-    UnaryOp{ op: UnaryOp, src_dest: Operand},
+    Mov {
+        src: Operand,
+        dest: Operand,
+    },
+    UnaryOp {
+        op: UnaryOp,
+        src_dest: Operand,
+    },
     AllocStack(usize),
     Ret,
     Cdq,
-    Idiv{ rhs: Operand },
-    BinaryOp { op: BinaryOp, lhs_dest: Operand, rhs: Operand},
-    Cmp{lhs: Operand, rhs: Operand},
-    Jmp{ target: Label },
-    JmpCC{ cnd: CmpKind, target: Label},
-    SetCC{ cnd: CmpKind, dest: Operand},
+    Idiv {
+        rhs: Operand,
+    },
+    BinaryOp {
+        op: BinaryOp,
+        lhs_dest: Operand,
+        rhs: Operand,
+    },
+    Cmp {
+        lhs: Operand,
+        rhs: Operand,
+    },
+    Jmp {
+        target: Label,
+    },
+    JmpCC {
+        cnd: CmpKind,
+        target: Label,
+    },
+    SetCC {
+        cnd: CmpKind,
+        dest: Operand,
+    },
     LocalLabel(Label),
 }
 
@@ -33,21 +56,21 @@ pub enum Operand {
     Imm(i32),
     Reg(Register),
     Pseudo(usize),
-    Stack(usize)
+    Stack(usize),
 }
 
-impl Operand{
-    pub fn is_mem(&self) -> bool{
-        match self{
+impl Operand {
+    pub fn is_mem(&self) -> bool {
+        match self {
             Operand::Imm(_) => false,
             Operand::Reg(_) => false,
             Operand::Pseudo(_) => false,
             Operand::Stack(_) => true,
         }
     }
-    
+
     pub fn is_const(&self) -> bool {
-        match self{
+        match self {
             Operand::Imm(_) => true,
             Operand::Reg(_) => false,
             Operand::Pseudo(_) => false,
@@ -57,14 +80,14 @@ impl Operand{
 }
 
 #[derive(Debug)]
-pub enum UnaryOp{
+pub enum UnaryOp {
     Neg,
     BitNot,
     LogNot,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum BinaryOp{
+pub enum BinaryOp {
     Addition,
     Subtract,
     Multiply,
@@ -80,18 +103,18 @@ pub enum Register {
     AX,
     DX,
     R10,
-    R11, 
+    R11,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Label(pub usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CmpKind{
+pub enum CmpKind {
     Eq,
     Ne,
     Gt,
     Gte,
     Lt,
-    Lte
+    Lte,
 }

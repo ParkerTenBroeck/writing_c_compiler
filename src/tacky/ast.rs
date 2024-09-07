@@ -1,10 +1,8 @@
-
+#[derive(Debug)]
+pub struct Program<'a>(pub Vec<TopLevel<'a>>);
 
 #[derive(Debug)]
-pub struct Program<'a> (pub Vec<TopLevel<'a>>);
-
-#[derive(Debug)]
-pub enum TopLevel<'a>{
+pub enum TopLevel<'a> {
     FunctionDef(FunctionDef<'a>),
 }
 
@@ -18,33 +16,43 @@ pub struct FunctionDef<'a> {
 #[derive(Debug)]
 pub enum Instruction {
     Return(Val),
-    Unary{
+    Unary {
         op: UnaryOp,
         dest: Val,
         src: Val,
     },
-    Binary{
+    Binary {
         op: BinaryOp,
         lhs: Val,
         rhs: Val,
         dest: Val,
     },
     LocalLabel(Label),
-    Copy{src: Val, dest: Val},
-    Jump{ target: Label },
-    JumpIfZero{cond: Val, target: Label},
-    JumpIfNotZero{cond: Val, target: Label},
+    Copy {
+        src: Val,
+        dest: Val,
+    },
+    Jump {
+        target: Label,
+    },
+    JumpIfZero {
+        cond: Val,
+        target: Label,
+    },
+    JumpIfNotZero {
+        cond: Val,
+        target: Label,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Label(pub usize);
 
-
 #[derive(Debug)]
 pub enum BinaryOp {
     Addition,
     Subtract,
-    
+
     Multiply,
     Divide,
     Remainder,
