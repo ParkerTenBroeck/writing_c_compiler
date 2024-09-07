@@ -1,9 +1,5 @@
 int main(void){
-    int bruh = --ptr++;
-    int a = 3 + 1;
-    
-    int silly = -a + ++++a + a++++ + ----a + a----;
-    return silly;
+    return 3 + 2 -3;
 }
 
 
@@ -11,4 +7,4 @@ int main(void){
 //     const char* start = str;
 //     while(!*str++);
 //     return str - start;
-// }
+// }dd

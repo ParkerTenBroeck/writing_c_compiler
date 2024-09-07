@@ -1,21 +1,22 @@
 pub mod ast;
 
-pub fn code_gen(ast: crate::tacky::ast::Program<'_>) -> self::ast::Program<'_> {
-    let mut ast = gen::AsmGen::new().gen(ast);
-    register_allocation::RegAllocation::new().run_regalloc(&mut ast);
+pub fn code_gen<'a, 'b>(info: &'b mut crate::util::info::CompilerInfo<'a>, ast: crate::tacky::ast::Program<'a>) -> self::ast::Program<'a> {
+    let mut ast = gen::AsmGen::new(info).gen(ast);
+    register_allocation::RegAllocation::new(info).run_regalloc(&mut ast);
     fixup::AsmFixup::new().run_fixup(&mut ast);
     ast
 }
 
 pub mod register_allocation {
-    use crate::code_gen::ast::*;
+    use crate::{code_gen::ast::*, util::info::CompilerInfo};
 
-    #[derive(Default)]
-    pub struct RegAllocation {}
+    pub struct RegAllocation<'a, 'b> {
+        info: &'b mut CompilerInfo<'a>
+    }
 
-    impl RegAllocation {
-        pub fn new() -> Self {
-            RegAllocation {}
+    impl<'a, 'b> RegAllocation<'a, 'b> {
+        pub fn new(info: &'b mut CompilerInfo<'a>) -> Self {
+            Self { info }
         }
 
         pub fn run_regalloc(&mut self, prog: &mut Program<'_>) {
@@ -69,7 +70,7 @@ pub mod register_allocation {
 
         fn regalloc_op(&mut self, op: &mut Operand) {
             if let Operand::Pseudo(pseudo) = op {
-                *op = Operand::Stack(*pseudo);
+                *op = Operand::Stack(*pseudo*4 + 4);
             }
         }
     }
@@ -195,17 +196,18 @@ pub mod fixup {
 }
 
 pub mod gen {
-    use crate::{code_gen, tacky};
+    use crate::{code_gen, tacky, util::info::CompilerInfo};
 
-    #[derive(Default)]
-    pub struct AsmGen {}
+    pub struct AsmGen<'a, 'b> {
+        info: &'b mut CompilerInfo<'a>
+    }
 
-    impl AsmGen {
-        pub fn new() -> Self {
-            Self {}
+    impl<'a, 'b> AsmGen<'a, 'b> {
+        pub fn new(info: &'b mut CompilerInfo<'a>) -> Self {
+            Self { info }
         }
 
-        pub fn gen<'a>(&mut self, ast: tacky::ast::Program<'a>) -> code_gen::ast::Program<'a> {
+        pub fn gen(&mut self, ast: tacky::ast::Program<'a>) -> code_gen::ast::Program<'a> {
             let mut prog = code_gen::ast::Program(Vec::new());
             for top in ast.0 {
                 prog.0.push(self.gen_top_level(top));
@@ -213,7 +215,7 @@ pub mod gen {
             prog
         }
 
-        fn gen_top_level<'a>(
+        fn gen_top_level(
             &mut self,
             top: tacky::ast::TopLevel<'a>,
         ) -> code_gen::ast::TopLevel<'a> {
@@ -224,7 +226,7 @@ pub mod gen {
             }
         }
 
-        fn gen_function_def<'a>(
+        fn gen_function_def(
             &mut self,
             ast: tacky::ast::FunctionDef<'a>,
         ) -> code_gen::ast::FunctionDef<'a> {
@@ -233,7 +235,7 @@ pub mod gen {
             use code_gen::ast::Register as R;
 
             let mut ins = Vec::new();
-            ins.push(I::AllocStack(ast.temps * 4));
+            ins.push(I::AllocStack(self.info.func.stack_size));
             self.gen_instructions(&mut ins, ast.instructions);
 
             if ast.name == "main" {
@@ -374,7 +376,7 @@ pub mod gen {
                     });
                 }
                 tacky::ast::Instruction::LocalLabel(l) => ins.push(
-                    code_gen::ast::Instruction::LocalLabel(code_gen::ast::Label(l.0)),
+                    code_gen::ast::Instruction::LocalLabel(l),
                 ),
                 tacky::ast::Instruction::Copy { src, dest } => {
                     let src = self.convert_val(src);
@@ -383,7 +385,7 @@ pub mod gen {
                 }
                 tacky::ast::Instruction::Jump { target } => {
                     ins.push(code_gen::ast::Instruction::Jmp {
-                        target: code_gen::ast::Label(target.0),
+                        target,
                     })
                 }
                 tacky::ast::Instruction::JumpIfZero { cond, target } => {
@@ -394,7 +396,7 @@ pub mod gen {
                     });
                     ins.push(code_gen::ast::Instruction::JmpCC {
                         cnd: code_gen::ast::CmpKind::Eq,
-                        target: code_gen::ast::Label(target.0),
+                        target,
                     })
                 }
                 tacky::ast::Instruction::JumpIfNotZero { cond, target } => {
@@ -405,7 +407,7 @@ pub mod gen {
                     });
                     ins.push(code_gen::ast::Instruction::JmpCC {
                         cnd: code_gen::ast::CmpKind::Ne,
-                        target: code_gen::ast::Label(target.0),
+                        target,
                     })
                 }
             }
@@ -414,7 +416,7 @@ pub mod gen {
         fn convert_val(&mut self, val: tacky::ast::Val) -> code_gen::ast::Operand {
             match val {
                 tacky::ast::Val::Const(val) => code_gen::ast::Operand::Imm(val),
-                tacky::ast::Val::Var(var) => code_gen::ast::Operand::Pseudo(var),
+                tacky::ast::Val::Var(var) => code_gen::ast::Operand::Pseudo(var.0),
             }
         }
     }

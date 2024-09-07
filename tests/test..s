@@ -3,17 +3,17 @@ main:
 	pushq %rbp
 	movq %rsp, %rbp
 
-	subq $4, %rsp
-	movl $0, %r10d
-	cmpl $2, %r10d
-	movl $0, -4(%rbp)
-	movl $0, %r10d
-	cmpl $2, %r10d
-	sete -4(%rbp)
-	movl -4(%rbp), %eax
+	subq $8, %rsp
+	movl $3, -4(%rbp)
+	addl $2, -4(%rbp)
+	movl -4(%rbp), %r10d
+	movl %r10d, -8(%rbp)
+	subl $3, -8(%rbp)
+	movl -8(%rbp), %eax
 	movq %rbp, %rsp
 	popq %rbp
 	ret
+	movl $0, %eax
 	movq %rbp, %rsp
 	popq %rbp
 	ret

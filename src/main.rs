@@ -1,13 +1,14 @@
 use std::path::PathBuf;
 
-use clap::{arg, command, Parser, ValueEnum};
+use clap::{arg, command, Parser};
 
+pub mod util;
+pub mod code_emit;
+pub mod code_gen;
 pub mod lex;
 pub mod parser;
 pub mod semanitc;
 pub mod tacky;
-pub mod code_gen;
-pub mod code_emit;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -16,19 +17,21 @@ struct Cli {
     #[arg(short, long)]
     input: PathBuf,
 
-    #[arg(short, long)]
+    #[clap(subcommand)]
     mode: Option<Mode>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::Subcommand)]
 enum Mode {
     /// run the lexer, but stop before parsing
     Lex,
-    /// run the lexer and parser, but stop before intermediate generation
+    /// run the lexer and parser, but stop before semantic analysis
     Parse,
-    /// run the lexer, parser, and tacky, but stop before code generation
+    /// run the lexer, parser, and semantic analysis, but stop before tacky generation]
+    Verify,
+    /// run the lexer, parser, semantic analysis, and tacky, but stop before code generation
     Tacky,
-    /// run the lexer, parser, tacky, and codegen, but stop before assembly generation
+    /// run the lexer, parser, semantic analysis, tacky, and codegen, but stop before assembly emission
     Codegen,
 }
 
@@ -54,52 +57,61 @@ fn main() -> Result<(), ()> {
     let pre_processed = String::from_utf8(pre_processed).unwrap();
     let input = pre_processed;
 
-    match cli.mode {
-        Some(Mode::Lex) => {
-            for tok in lex::Lexer::new(&input) {
-                match tok {
-                    Ok(_) => todo!(),
-                    Err(err) => println!("{err:#?}"),
-                }
-            }
-            return Ok(());
-        }
-        Some(Mode::Parse) => {
-            match parser::Parser::new(&input).parse() {
-                Ok(program) => println!("{program:#?}"),
-                Err(errors) => return Err(println!("{errors:#?}")),
-            }
-            return Ok(());
-        }
-        Some(Mode::Tacky) => {
-            match parser::Parser::new(&input).parse() {
-                Ok(program) => println!("{:#?}", tacky::TackyGen::new().ast_to_tacky(program)),
-                Err(errors) => return Err(println!("{errors:#?}")),
-            }
-            return Ok(());
-        }
-        Some(Mode::Codegen) => {
-            match parser::Parser::new(&input).parse() {
-                Ok(program) => println!(
-                    "{:#?}",
-                    code_gen::gen::AsmGen::new().gen(tacky::TackyGen::new().ast_to_tacky(program))
-                ),
-                Err(errors) => return Err(println!("{errors:#?}")),
-            }
-            return Ok(());
-        }
-        None => {}
-    }
+    let mut info = util::info::CompilerInfo::new();
 
-    let res = parser::Parser::new(&input).parse();
-    let program = match res {
+    // lexing stage
+    let lexer = lex::Lexer::new(&input);
+    if cli.mode == Some(Mode::Lex) {
+        let mut error = false;
+        for tok in lexer {
+            error |= tok.is_err();
+            match tok {
+                Ok(_) => todo!(),
+                Err(err) => println!("{err:#?}"),
+            }
+        }
+        if error {
+            return Err(());
+        } else {
+            return Ok(());
+        }
+    };
+
+    // parsing stage
+    let ast = parser::Parser::new(lexer).parse();
+    let mut ast = match ast {
         Ok(program) => program,
         Err(errors) => return Err(println!("{errors:#?}")),
     };
+    if cli.mode == Some(Mode::Parse) {
+        return Ok(());
+    }
+
+    // semantic analysis & variable resolution
+    if let Err(errors) = semanitc::SemanticAnalysis::new(&mut info).resolve_pass(&mut ast) {
+        return Err(println!("{errors:#?}"));
+    }
+    if cli.mode == Some(Mode::Verify) {
+        return Ok(());
+    }
+
+    // intermediate representation generation
+    let tacky = tacky::TackyGen::new(&mut info).ast_to_tacky(ast);
+    if cli.mode == Some(Mode::Tacky) {
+        return Ok(());
+    }
+
+    // code generation
+    let code = code_gen::code_gen(&mut info, tacky);
+    if cli.mode == Some(Mode::Codegen) {
+        return Ok(());
+    }
+
+    // code emission
     let mut out = String::new();
-    let program = tacky::TackyGen::new().ast_to_tacky(program);
-    let program = code_gen::code_gen( program);
-    code_emit::AsmEmission::new(&mut out).emit_asm(program).unwrap();
+    code_emit::AsmEmission::new(&mut out)
+        .emit_asm(code)
+        .unwrap();
     std::fs::write(&output, out).unwrap();
     std::process::Command::new("gcc")
         .arg(output)

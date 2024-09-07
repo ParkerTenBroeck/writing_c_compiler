@@ -1,4 +1,4 @@
-use crate::lex::Number;
+use crate::{lex::Number, util::info::Var};
 
 #[derive(Debug)]
 pub struct Program<'a>(pub Vec<TopLevel<'a>>);
@@ -23,7 +23,7 @@ pub enum BlockItem<'a> {
 #[derive(Debug)]
 pub struct Ident<'a> {
     pub name: &'a str,
-    pub resolve: Option<usize>,
+    pub resolve: Option<Var>,
 }
 
 impl<'a> Ident<'a> {
@@ -57,28 +57,24 @@ pub enum Expr<'a> {
         lhs: Box<Expr<'a>>,
         rhs: Box<Expr<'a>>,
     },
-    Assignment {
-        kind: AssignmentKind,
-        dest: Box<Expr<'a>>,
-        src: Box<Expr<'a>>,
-    },
+
     Ident(Ident<'a>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AssignmentKind {
-    Assign,
-    PlusEq,
-    MinusEq,
-    TimesEq,
-    DivEq,
-    ModEq,
-    AndEq,
-    OrEq,
-    XorEq,
-    ShlEq,
-    ShrEq,
-}
+// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// pub enum AssignmentKind {
+//     Assign,
+//     PlusEq,
+//     MinusEq,
+//     TimesEq,
+//     DivEq,
+//     ModEq,
+//     AndEq,
+//     OrEq,
+//     XorEq,
+//     ShlEq,
+//     ShrEq,
+// }
 
 #[derive(Debug)]
 pub enum UnaryOp {

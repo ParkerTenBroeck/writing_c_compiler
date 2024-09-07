@@ -131,9 +131,7 @@ impl<W: std::fmt::Write> AsmEmission<W> {
                 self.emit_operand(dest, OperandSizeHint::U8)?;
                 self.out.write_str("\n")?;
             }
-            code_gen::ast::Instruction::LocalLabel(label) => {
-                writeln!(self.out, ".L{}:", label.0)?
-            }
+            code_gen::ast::Instruction::LocalLabel(label) => writeln!(self.out, ".L{}:", label.0)?,
         }
         Ok(())
     }
@@ -167,7 +165,7 @@ impl<W: std::fmt::Write> AsmEmission<W> {
             code_gen::ast::Operand::Pseudo(val) => {
                 panic!("pseudo '{val}' regsiter exists at emission stage!")
             }
-            code_gen::ast::Operand::Stack(val) => write!(self.out, "-{}(%rbp)", (val + 1) * 4),
+            code_gen::ast::Operand::Stack(val) => write!(self.out, "-{}(%rbp)", val),
         }
     }
 }

@@ -1,32 +1,19 @@
 pub mod ast;
 
-use crate::parser;
+use crate::{parser, util};
 
-#[derive(Default)]
-pub struct TackyGen {
-    tmp_variable: usize,
-    tmp_label: usize,
+pub struct TackyGen<'a, 'b> {
+    info: &'b mut util::info::CompilerInfo<'a>
 }
 
-impl TackyGen {
-    pub fn new() -> Self {
+impl<'a, 'b> TackyGen<'a, 'b> {
+    pub fn new(info: &'b mut util::info::CompilerInfo<'a>) -> Self {
         Self {
-            tmp_variable: 0,
-            tmp_label: 0,
+            info
         }
     }
 
-    fn next_tmp_var(&mut self) -> ast::Val {
-        self.tmp_variable += 1;
-        ast::Val::Var(self.tmp_variable - 1)
-    }
-
-    fn next_tmp_label(&mut self) -> ast::Label {
-        self.tmp_label += 1;
-        ast::Label(self.tmp_label - 1)
-    }
-
-    pub fn ast_to_tacky<'a>(&mut self, input: parser::ast::Program<'a>) -> ast::Program<'a> {
+    pub fn ast_to_tacky(&mut self, input: parser::ast::Program<'a>) -> ast::Program<'a> {
         let mut prog = ast::Program(Vec::new());
         for top in input.0 {
             prog.0.push(self.top_level_to_tacky(top));
@@ -34,26 +21,26 @@ impl TackyGen {
         prog
     }
 
-    pub fn top_level_to_tacky<'a>(
+    pub fn top_level_to_tacky(
         &mut self,
         input: parser::ast::TopLevel<'a>,
     ) -> ast::TopLevel<'a> {
         match input {
             parser::ast::TopLevel::FunctionDef(func) => {
                 let mut ins = Vec::new();
+
                 for item in func.body {
                     self.block_item_to_tacky(&mut ins, item);
                 }
                 ast::TopLevel::FunctionDef(ast::FunctionDef {
                     name: func.name,
-                    temps: self.tmp_variable,
                     instructions: ins,
                 })
             }
         }
     }
 
-    pub fn block_item_to_tacky<'a>(
+    pub fn block_item_to_tacky(
         &mut self,
         ins: &mut Vec<ast::Instruction>,
         blk_item: parser::ast::BlockItem<'a>,
@@ -203,17 +190,40 @@ impl TackyGen {
                     parser::ast::BinaryOp::Lt => ast::BinaryOp::Lt,
                     parser::ast::BinaryOp::Lte => ast::BinaryOp::Lte,
 
-                    parser::ast::BinaryOp::Assignment => todo!(),
-                    parser::ast::BinaryOp::PlusEq => todo!(),
-                    parser::ast::BinaryOp::MinusEq => todo!(),
-                    parser::ast::BinaryOp::TimesEq => todo!(),
-                    parser::ast::BinaryOp::DivideEq => todo!(),
-                    parser::ast::BinaryOp::ModuloEq => todo!(),
-                    parser::ast::BinaryOp::ShiftLeftEq => todo!(),
-                    parser::ast::BinaryOp::ShiftRightEq => todo!(),
-                    parser::ast::BinaryOp::AndEq => todo!(),
-                    parser::ast::BinaryOp::OrEq => todo!(),
-                    parser::ast::BinaryOp::XorEq => todo!(),
+                    parser::ast::BinaryOp::Assignment |
+                    parser::ast::BinaryOp::PlusEq |
+                    parser::ast::BinaryOp::MinusEq |
+                    parser::ast::BinaryOp::TimesEq |
+                    parser::ast::BinaryOp::DivideEq |
+                    parser::ast::BinaryOp::ModuloEq |
+                    parser::ast::BinaryOp::ShiftLeftEq |
+                    parser::ast::BinaryOp::ShiftRightEq |
+                    parser::ast::BinaryOp::AndEq |
+                    parser::ast::BinaryOp::OrEq |
+                    parser::ast::BinaryOp::XorEq => {
+                        if let parser::ast::Expr::Ident(_) = &*lhs {
+                        } else {
+                            todo!("unsupported non identifier assignment");
+                        }
+                        let lhs = self.expression_to_tacky(ins, *lhs);
+                        let rhs = self.expression_to_tacky(ins, *rhs);
+                        match op{
+                            parser::ast::BinaryOp::Assignment => ins.push(ast::Instruction::Copy { src: rhs, dest: lhs }),
+                            parser::ast::BinaryOp::PlusEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::Addition, lhs, rhs, dest: lhs }),
+                            parser::ast::BinaryOp::MinusEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::Subtract, lhs, rhs, dest: lhs }),
+                            parser::ast::BinaryOp::TimesEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::Multiply, lhs, rhs, dest: lhs }),
+                            parser::ast::BinaryOp::DivideEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::Divide, lhs, rhs, dest: lhs }),
+                            parser::ast::BinaryOp::ModuloEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::Remainder, lhs, rhs, dest: lhs }),
+                            parser::ast::BinaryOp::ShiftLeftEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::ShiftLeft, lhs, rhs, dest: lhs }),
+                            parser::ast::BinaryOp::ShiftRightEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::ShiftRight, lhs, rhs, dest: lhs }),
+                            parser::ast::BinaryOp::AndEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::BitAnd, lhs, rhs, dest: lhs }),
+                            parser::ast::BinaryOp::OrEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::BitOr, lhs, rhs, dest: lhs }),
+                            parser::ast::BinaryOp::XorEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::BitXor, lhs, rhs, dest: lhs }),
+                            _ => unreachable!(),
+                        }
+
+                        return lhs;
+                    },
                 };
 
                 let lhs = self.expression_to_tacky(ins, *lhs);
@@ -222,26 +232,16 @@ impl TackyGen {
                 ins.push(ast::Instruction::Binary { op, lhs, rhs, dest });
                 dest
             }
-            parser::ast::Expr::Assignment { kind, dest, src } => {
-                if let parser::ast::Expr::Ident(ident) = *dest {
-                } else {
-                    todo!("unsupported non identifier assignment");
-                }
-                match kind {
-                    parser::ast::AssignmentKind::Assign => todo!(),
-                    parser::ast::AssignmentKind::PlusEq => todo!(),
-                    parser::ast::AssignmentKind::MinusEq => todo!(),
-                    parser::ast::AssignmentKind::TimesEq => todo!(),
-                    parser::ast::AssignmentKind::DivEq => todo!(),
-                    parser::ast::AssignmentKind::ModEq => todo!(),
-                    parser::ast::AssignmentKind::AndEq => todo!(),
-                    parser::ast::AssignmentKind::OrEq => todo!(),
-                    parser::ast::AssignmentKind::XorEq => todo!(),
-                    parser::ast::AssignmentKind::ShlEq => todo!(),
-                    parser::ast::AssignmentKind::ShrEq => todo!(),
-                }
-            }
             parser::ast::Expr::Ident(ident) => todo!(),
         }
+    }
+    
+    fn next_tmp_var(&mut self) -> ast::Val {
+        self.info.func.stack_size += 4;
+        ast::Val::Var(self.info.next_tmp_var())
+    }
+    
+    fn next_tmp_label(&mut self) -> util::info::Label {
+        self.info.next_tmp_label()
     }
 }

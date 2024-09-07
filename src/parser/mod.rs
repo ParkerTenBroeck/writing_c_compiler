@@ -73,9 +73,9 @@ macro_rules! is_tok {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(str: &'a str) -> Self {
+    pub fn new(lex: Lexer<'a>) -> Self {
         Self {
-            lex: Lexer::new(str),
+            lex,
             peek: None,
             errors: Vec::new(),
         }
@@ -98,14 +98,12 @@ impl<'a> Parser<'a> {
 
     fn next_tok(&mut self) -> Option<Spanned<Token<'a>>> {
         if let Some(peek) = self.peek.take() {
-            println!("{:?}", peek.map(|t| t.val));
             return peek;
         }
 
         for tok in &mut self.lex {
             match tok {
                 Ok(ok) => {
-                    println!("{:?}", ok.val);
                     return Some(ok);
                 }
                 Err(err) => self.errors.push(ParserError::LexerError(*err)),

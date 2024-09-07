@@ -1,3 +1,5 @@
+use crate::util::info::{Label, Var};
+
 #[derive(Debug)]
 pub struct Program<'a>(pub Vec<TopLevel<'a>>);
 
@@ -9,7 +11,6 @@ pub enum TopLevel<'a> {
 #[derive(Debug)]
 pub struct FunctionDef<'a> {
     pub name: &'a str,
-    pub temps: usize,
     pub instructions: Vec<Instruction>,
 }
 
@@ -44,9 +45,6 @@ pub enum Instruction {
         target: Label,
     },
 }
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Label(pub usize);
 
 #[derive(Debug)]
 pub enum BinaryOp {
@@ -86,5 +84,5 @@ pub enum UnaryOp {
 #[derive(Debug, Clone, Copy)]
 pub enum Val {
     Const(i32),
-    Var(usize),
+    Var(Var),
 }

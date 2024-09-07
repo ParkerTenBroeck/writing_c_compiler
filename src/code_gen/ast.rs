@@ -1,3 +1,5 @@
+use crate::util::info::Label;
+
 #[derive(Debug)]
 pub struct Program<'a>(pub Vec<TopLevel<'a>>);
 
@@ -105,9 +107,6 @@ pub enum Register {
     R10,
     R11,
 }
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Label(pub usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CmpKind {
