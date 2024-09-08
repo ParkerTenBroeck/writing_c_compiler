@@ -1,4 +1,4 @@
-use crate::util::info::{Label, Var};
+use crate::util::info::{LabelId, VarId};
 
 #[derive(Debug)]
 pub struct Program<'a>(pub Vec<TopLevel<'a>>);
@@ -28,21 +28,21 @@ pub enum Instruction {
         rhs: Val,
         dest: Val,
     },
-    LocalLabel(Label),
+    LocalLabel(LabelId),
     Copy {
         src: Val,
         dest: Val,
     },
     Jump {
-        target: Label,
+        target: LabelId,
     },
     JumpIfZero {
         cond: Val,
-        target: Label,
+        target: LabelId,
     },
     JumpIfNotZero {
         cond: Val,
-        target: Label,
+        target: LabelId,
     },
 }
 
@@ -84,5 +84,5 @@ pub enum UnaryOp {
 #[derive(Debug, Clone, Copy)]
 pub enum Val {
     Const(i32),
-    Var(Var),
+    Var(VarId),
 }

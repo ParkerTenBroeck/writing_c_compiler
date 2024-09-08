@@ -235,7 +235,7 @@ pub mod gen {
             use code_gen::ast::Register as R;
 
             let mut ins = Vec::new();
-            ins.push(I::AllocStack(self.info.func.stack_size));
+            ins.push(I::AllocStack(self.info.func.get_temporaries() * 4));
             self.gen_instructions(&mut ins, ast.instructions);
 
             if ast.name == "main" {
@@ -416,7 +416,12 @@ pub mod gen {
         fn convert_val(&mut self, val: tacky::ast::Val) -> code_gen::ast::Operand {
             match val {
                 tacky::ast::Val::Const(val) => code_gen::ast::Operand::Imm(val),
-                tacky::ast::Val::Var(var) => code_gen::ast::Operand::Pseudo(var.0),
+                tacky::ast::Val::Var(var) => match self.info.get_var(var){
+                    crate::util::info::Var::Local(loc) => {
+                        code_gen::ast::Operand::Pseudo(*loc)
+                    },
+                    crate::util::info::Var::Global(_) => todo!(),
+                },
             }
         }
     }

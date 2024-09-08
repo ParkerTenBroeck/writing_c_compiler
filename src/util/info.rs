@@ -1,20 +1,27 @@
-use std::collections::HashMap;
+#[derive(Debug)]
+pub enum Var<'a>{
+    Local(usize),
+    Global(&'a str),
+}
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct LabelId(pub usize);
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct VarId(pub usize);
 
 #[derive(Debug, Default)]
 pub struct CompilerInfo<'a>{
-    pub func: Functioninfo<'a>,
+    pub func: Functioninfo,
+    
+    var_map: Vec<Var<'a>>,
 
-    tmp_variable: usize,
-    tmp_label: usize,
+    tmp_labels: usize,
 }
 
 #[derive(Debug, Default)]
-pub struct Functioninfo<'a>{
-    pub stack_size: usize,
-
-    var_map: HashMap<&'a str, Var>
+pub struct Functioninfo{
+    temporaries: usize,
 }
 
 impl<'a> CompilerInfo<'a> {
@@ -22,19 +29,28 @@ impl<'a> CompilerInfo<'a> {
         Self::default()
     }
 
-    pub fn next_tmp_var(&mut self) -> Var {
-        self.tmp_variable += 1;
-        Var(self.tmp_variable - 1)
+    pub fn next_tmp_label(&mut self) -> LabelId {
+        self.tmp_labels += 1;
+        LabelId(self.tmp_labels - 1)
     }
-
-    pub fn next_tmp_label(&mut self) -> Label {
-        self.tmp_label += 1;
-        Label(self.tmp_label - 1)
+    
+    pub fn next_tmp_var(&mut self) -> VarId {
+        self.var_map.push(self.func.next_tmp_var());
+        VarId(self.var_map.len() - 1)
+    }
+    
+    pub fn get_var(&self, var: VarId) -> &Var<'a> {
+        self.var_map.get(var.0).unwrap()
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Label(pub usize);
+impl Functioninfo{
+    fn next_tmp_var<'a>(&mut self) -> Var<'a> {
+        self.temporaries += 1;
+        Var::Local(self.temporaries - 1)
+    }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Var(pub usize);
+    pub fn get_temporaries(&self) -> usize{
+        self.temporaries
+    }
+}

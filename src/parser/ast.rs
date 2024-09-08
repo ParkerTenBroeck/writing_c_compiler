@@ -1,4 +1,4 @@
-use crate::{lex::Number, util::info::Var};
+use crate::{lex::Number, util::info::VarId};
 
 #[derive(Debug)]
 pub struct Program<'a>(pub Vec<TopLevel<'a>>);
@@ -23,7 +23,7 @@ pub enum BlockItem<'a> {
 #[derive(Debug)]
 pub struct Ident<'a> {
     pub name: &'a str,
-    pub resolve: Option<Var>,
+    pub resolve: Option<VarId>,
 }
 
 impl<'a> Ident<'a> {
