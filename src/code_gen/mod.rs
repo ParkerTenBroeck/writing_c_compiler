@@ -1,6 +1,9 @@
 pub mod ast;
 
-pub fn code_gen<'a>(info: &mut crate::util::info::CompilerInfo<'a>, ast: crate::tacky::ast::Program<'a>) -> self::ast::Program<'a> {
+pub fn code_gen<'a>(
+    info: &mut crate::util::info::CompilerInfo<'a>,
+    ast: crate::tacky::ast::Program<'a>,
+) -> self::ast::Program<'a> {
     let mut ast = gen::AsmGen::new(info).gen(ast);
     register_allocation::RegAllocation::new(info).run_regalloc(&mut ast);
     fixup::AsmFixup::new().run_fixup(&mut ast);
@@ -21,7 +24,11 @@ pub mod register_allocation {
 
     impl<'a, 'b> RegAllocation<'a, 'b> {
         pub fn new(info: &'b mut CompilerInfo<'a>) -> Self {
-            Self { info, pseudo_map: Default::default(), used_stack: 0 }
+            Self {
+                info,
+                pseudo_map: Default::default(),
+                used_stack: 0,
+            }
         }
 
         pub fn run_regalloc(&mut self, prog: &mut Program<'_>) {
@@ -78,16 +85,16 @@ pub mod register_allocation {
 
         fn regalloc_op(&mut self, op: &mut Operand) {
             if let Operand::Pseudo(pseudo) = op {
-                match self.pseudo_map.entry(*pseudo){
+                match self.pseudo_map.entry(*pseudo) {
                     std::collections::hash_map::Entry::Occupied(val) => {
                         *op = Operand::Stack(*val.get());
-                    },
+                    }
                     std::collections::hash_map::Entry::Vacant(vacent) => {
                         *op = Operand::Stack(self.used_stack);
                         vacent.insert(self.used_stack);
                         // TODO size of pseudo
                         self.used_stack += 4;
-                    },
+                    }
                 }
             }
         }
@@ -217,7 +224,7 @@ pub mod gen {
     use crate::{code_gen, tacky, util::info::CompilerInfo};
 
     pub struct AsmGen<'a, 'b> {
-        info: &'b mut CompilerInfo<'a>
+        info: &'b mut CompilerInfo<'a>,
     }
 
     impl<'a, 'b> AsmGen<'a, 'b> {
@@ -233,10 +240,7 @@ pub mod gen {
             prog
         }
 
-        fn gen_top_level(
-            &mut self,
-            top: tacky::ast::TopLevel<'a>,
-        ) -> code_gen::ast::TopLevel<'a> {
+        fn gen_top_level(&mut self, top: tacky::ast::TopLevel<'a>) -> code_gen::ast::TopLevel<'a> {
             match top {
                 tacky::ast::TopLevel::FunctionDef(func) => {
                     code_gen::ast::TopLevel::FunctionDef(self.gen_function_def(func))
@@ -393,18 +397,16 @@ pub mod gen {
                         rhs,
                     });
                 }
-                tacky::ast::Instruction::LocalLabel(l) => ins.push(
-                    code_gen::ast::Instruction::LocalLabel(l),
-                ),
+                tacky::ast::Instruction::LocalLabel(l) => {
+                    ins.push(code_gen::ast::Instruction::LocalLabel(l))
+                }
                 tacky::ast::Instruction::Copy { src, dest } => {
                     let src = self.convert_val(src);
                     let dest = self.convert_val(dest);
                     ins.push(code_gen::ast::Instruction::Mov { src, dest })
                 }
                 tacky::ast::Instruction::Jump { target } => {
-                    ins.push(code_gen::ast::Instruction::Jmp {
-                        target,
-                    })
+                    ins.push(code_gen::ast::Instruction::Jmp { target })
                 }
                 tacky::ast::Instruction::JumpIfZero { cond, target } => {
                     let cond = self.convert_val(cond);
@@ -434,10 +436,8 @@ pub mod gen {
         fn convert_val(&mut self, val: tacky::ast::Val) -> code_gen::ast::Operand {
             match val {
                 tacky::ast::Val::Const(val) => code_gen::ast::Operand::Imm(val),
-                tacky::ast::Val::Var(var) => match self.info.get_var(var){
-                    crate::util::info::Var::Local(loc) => {
-                        code_gen::ast::Operand::Pseudo(*loc)
-                    },
+                tacky::ast::Val::Var(var) => match self.info.get_var(var) {
+                    crate::util::info::Var::Local(loc) => code_gen::ast::Operand::Pseudo(*loc),
                     crate::util::info::Var::Global(_) => todo!(),
                 },
             }

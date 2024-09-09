@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::{parser::ast, util::{self, info::VarId}};
+use crate::{
+    parser::ast,
+    util::{self, info::VarId},
+};
 
 #[derive(Debug)]
 pub enum SemanitcError<'a> {
@@ -24,7 +27,7 @@ impl<'a, 'b> SemanticAnalysis<'a, 'b> {
         Self {
             errors: Vec::new(),
             map: ScopeTracker::default(),
-            info
+            info,
         }
     }
 
@@ -71,7 +74,7 @@ impl<'a, 'b> SemanticAnalysis<'a, 'b> {
 
     fn resolve_expr(&mut self, expr: &mut ast::Expr<'a>) {
         match expr {
-            ast::Expr::Constant(_) => {},
+            ast::Expr::Constant(_) => {}
             ast::Expr::Unary(_, expr) => self.resolve_expr(expr),
             ast::Expr::Binary { lhs, rhs, .. } => {
                 self.resolve_expr(lhs);

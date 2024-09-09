@@ -31,6 +31,27 @@ pub enum LexError<'a> {
     NumberParseError(NumberError),
 }
 
+impl<'a> std::fmt::Display for LexError<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LexError::InvalidChar(char) => write!(f, "invalid character {char:?}"),
+            LexError::EmptyCharLiteral => write!(f, "cannot have empty char literal"),
+            LexError::UnclosedCharLiteral => write!(f, "unclosed char literal"),
+            LexError::CharLiteralTooBig => write!(f, "char literal too big"),
+            LexError::UnclosedMultiLineComment => write!(f, "unclosed multi line comment"),
+            LexError::InvalidEscape(escape) => write!(f, "invalid escape, {escape:?}"),
+            LexError::UnfinishedEscapeSequence(escape) => {
+                write!(f, "unfinished escape sequence {escape:?}")
+            }
+            LexError::UnclosedStringLiteral => write!(f, "unclosed string literal"),
+            LexError::EmptyExponent => write!(f, "empty exponent"),
+            LexError::InvalidBase2Digit(digit) => write!(f, "invalid base 2 digit {digit:?}"),
+            LexError::NoNumberAfterBasePrefix => write!(f, "no number after base prefix"),
+            LexError::NumberParseError(err) => write!(f, "{err}"),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum EscapeReturn {
     String,

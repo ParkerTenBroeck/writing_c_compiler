@@ -2,14 +2,13 @@ use crate::lex::Span;
 
 use super::info::{CompilerInfo, Node, NodeId, Source};
 
-
-enum ErrorKind{
+enum ErrorKind {
     Error,
     Warning,
     Info,
 }
 
-pub struct ErrorNode<'a>{
+pub struct ErrorNode<'a> {
     node: NodeId,
     span: Span,
     source: Source<'a>,
@@ -17,21 +16,38 @@ pub struct ErrorNode<'a>{
     msg: String,
 }
 
-impl NodeId{
-    pub fn error<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a>{
-        let (span, source) = info.get_node_source(*self);
-        ErrorNode { 
-            node: *self, 
-            span, 
-            source, 
+impl<'a> ErrorNode<'a> {
+    pub fn eof(source: Source<'a>, msg: String) -> ErrorNode<'a> {
+        ErrorNode {
+            node: NodeId(0),
+            span: Span {
+                line: source.contents.lines().count() as u32,
+                col: source.contents.lines().last().unwrap_or("").len() as u32,
+                offset: source.contents.len() as u32,
+                len: 1,
+            },
+            source,
             kind: ErrorKind::Error,
-            msg
+            msg,
         }
     }
 }
 
-impl<T> Node<T>{
-    pub fn error<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a>{
+impl NodeId {
+    pub fn error<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a> {
+        let (span, source) = info.get_node_source(*self);
+        ErrorNode {
+            node: *self,
+            span,
+            source,
+            kind: ErrorKind::Error,
+            msg,
+        }
+    }
+}
+
+impl<T> Node<T> {
+    pub fn error<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a> {
         self.1.error(info, msg)
     }
 }
@@ -44,30 +60,40 @@ const RESET: &str = "\x1b[0;22m";
 
 impl<'a> std::fmt::Display for ErrorNode<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.kind{
+        match self.kind {
             ErrorKind::Error => write!(f, "{BOLD}{RED}error{RESET}{RESET}{BOLD}: {}", self.msg)?,
-            ErrorKind::Warning => write!(f, "{BOLD}{YELLOW}warning{RESET}{RESET}{BOLD}: {}", self.msg)?,
+            ErrorKind::Warning => {
+                write!(f, "{BOLD}{YELLOW}warning{RESET}{RESET}{BOLD}: {}", self.msg)?
+            }
             ErrorKind::Info => write!(f, "{BOLD}{BLUE}info{RESET}{RESET}{BOLD}: {}", self.msg)?,
         }
 
-        let error_range = self.span.offset as usize..(self.span.offset as usize + self.span.len as usize);
-        let start = self.source.contents[..=error_range.start].char_indices().rev().find_map(|c| (c.1 == '\n').then_some(c.0.saturating_add(1))).unwrap_or(0);
-        let end = error_range.end + self.source.contents[error_range.end..].chars().position(|c| c == '\n').unwrap_or(self.source.contents[error_range.end..].len());
+        let error_range =
+            self.span.offset as usize..(self.span.offset as usize + self.span.len as usize);
+        let start = self.source.contents[..error_range.start]
+            .char_indices()
+            .rev()
+            .find_map(|c| (c.1 == '\n').then_some(c.0.saturating_add(1)))
+            .unwrap_or(0);
+        let to_end = (error_range.end < self.source.contents.len()).then(||&self.source.contents[error_range.end..]).unwrap_or_default();
+        let end = error_range.end
+            + to_end
+                .chars()
+                .position(|c| c == '\n')
+                .unwrap_or(to_end.len());
         let expanded_range = start..end;
-        let expanded = &self.source.contents[expanded_range.clone()];
+        let expanded = &self.source.contents[expanded_range.start..expanded_range.end.min(self.source.contents.len())];
 
         // this is funny
         let space = "                                                                                                                                                                                                                                                                ";
 
         let line = self.span.line + 1;
-        let space = &space[0..((line as f32 ).log10().floor() as u8) as usize + 1];
+        let space = &space[0..((line as f32).log10().floor() as u8) as usize + 1];
 
         writeln!(
             f,
             "{BLUE}{BOLD}\n{space}---> {RESET}{}:{}:{}",
-            self.source.path,
-            line,
-            self.span.col
+            self.source.path, line, self.span.col
         )?;
         writeln!(f, "{BLUE}{BOLD}{space} |")?;
         let mut index = expanded_range.start;
@@ -83,12 +109,12 @@ impl<'a> std::fmt::Display for ErrorNode<'a> {
                 index += c.len_utf8();
             }
             //nl
-            if error_range.contains(&index) {
+            if error_range.contains(&index) || error_range.is_empty() {
                 write!(f, "~")?;
             } else {
                 write!(f, " ")?;
             }
-            index += 1;
+            index += '\n'.len_utf8();
             writeln!(f)?;
         }
         write!(f, "{RESET}")

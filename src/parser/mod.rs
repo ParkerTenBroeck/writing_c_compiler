@@ -1,6 +1,9 @@
 use ast::Ident;
 
-use crate::{lex::{self, Lexer, Spanned, Token}, util::info};
+use crate::{
+    lex::{self, Lexer, Spanned, Token},
+    util::info::{self, Node, Source},
+};
 
 pub mod ast;
 
@@ -13,14 +16,15 @@ pub enum ParserError<'a> {
 
 pub struct Parser<'a, 'b> {
     lex: Lexer<'a>,
-    peek: Option<Option<Spanned<Token<'a>>>>,
-    errors: Vec<ParserError<'a>>,
+    peek: Option<Option<Node<Token<'a>>>>,
+    // errors: Vec<ParserError<'a>>,
     info: &'b mut info::CompilerInfo<'a>,
+    source: Source<'a>,
 }
 
 macro_rules! tok {
     ($pat:pat) => {
-        Spanned { val: $pat, .. }
+        Node($pat, _)
     };
 }
 
@@ -29,11 +33,11 @@ macro_rules! expect_tok {
         match $self.next_tok(){
             Some(tok!($tok)) => {Ok(($($blk)?))}
             Some(tok) => {
-                $self.errors.push(ParserError::UnexpectedToken(tok));
+                $self.info.report_error(tok.error($self.info, format!("unexpected token")));
                 Err(())
             }
             None => {
-                $self.errors.push(ParserError::ExpectedTokenFoundNone);
+                $self.info.report_eof_error($self.source, "unexpected EOF".into());
                 Err(())
             },
         }
@@ -74,31 +78,31 @@ macro_rules! is_tok {
 }
 
 impl<'a, 'b> Parser<'a, 'b> {
-    pub fn new(lex: Lexer<'a>, info: &'b mut info::CompilerInfo<'a>) -> Self {
+    pub fn new(source: Source<'a>, info: &'b mut info::CompilerInfo<'a>) -> Self {
         Self {
-            lex,
+            lex: Lexer::new(source.contents),
+            source,
             peek: None,
-            errors: Vec::new(),
-            info
+            info,
         }
     }
 
-    pub fn parse(mut self) -> Result<ast::Program<'a>, Vec<ParserError<'a>>> {
+    pub fn parse(mut self) -> Result<ast::Program<'a>, ()> {
         let err = self.parse_impl();
         while self.next_tok().is_some() {}
         match err {
             Ok(ok) => {
-                if self.errors.is_empty() {
+                if !self.info.has_errors() {
                     Ok(ok)
                 } else {
-                    Err(self.errors)
+                    Err(())
                 }
             }
-            Err(_) => Err(self.errors),
+            Err(_) => Err(()),
         }
     }
 
-    fn next_tok(&mut self) -> Option<Spanned<Token<'a>>> {
+    fn next_tok(&mut self) -> Option<Node<Token<'a>>> {
         if let Some(peek) = self.peek.take() {
             return peek;
         }
@@ -106,24 +110,32 @@ impl<'a, 'b> Parser<'a, 'b> {
         for tok in &mut self.lex {
             match tok {
                 Ok(ok) => {
-                    return Some(ok);
+                    return Some(self.info.create_node(self.source, ok));
                 }
-                Err(err) => self.errors.push(ParserError::LexerError(*err)),
+                Err(err) => {
+                    let node = self.info.create_node(self.source, *err);
+                    self.info
+                        .report_error(node.error(self.info, format!("{}", node.0)));
+                }
             }
         }
 
         None
     }
 
-    fn peek_next_tok(&mut self) -> Option<&Spanned<Token<'a>>> {
+    fn peek_next_tok(&mut self) -> Option<&Node<Token<'a>>> {
         if self.peek.is_none() {
             for tok in &mut self.lex {
                 match tok {
                     Ok(ok) => {
-                        self.peek = Some(Some(ok));
+                        self.peek = Some(Some(self.info.create_node(self.source, ok)));
                         break;
                     }
-                    Err(err) => self.errors.push(ParserError::LexerError(*err)),
+                    Err(err) => {
+                        let node = self.info.create_node(self.source, *err);
+                        self.info
+                            .report_error(node.error(self.info, format!("{}", node.0)));
+                    }
                 }
             }
         }
@@ -185,7 +197,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             Some(tok!(Token::Semicolon)) => ast::Statement::Empty,
             Some(tok) => ast::Statement::Expression(self.parse_expression()?),
             None => {
-                self.errors.push(ParserError::ExpectedTokenFoundNone);
+                self.info.report_eof_error(self.source, "expected statement but is at EOF".into());
                 return Err(());
             }
         );
@@ -295,12 +307,11 @@ impl<'a, 'b> Parser<'a, 'b> {
             },
 
             @consume Some(tok) => {
-                let err = ParserError::UnexpectedToken(tok);
-                self.errors.push(err);
+                self.info.report_error(tok.error(self.info, format!("unexpected token in expression")));
                 Err(())
             }
             None => {
-                self.errors.push(ParserError::ExpectedTokenFoundNone);
+                self.info.report_eof_error(self.source, "unexpected EOF".into());
                 Err(())
             }
         )

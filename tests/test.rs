@@ -1,5 +1,5 @@
-fn main() -> i32{
-    let tmp: `i32 = 5 + 3 * 2;
+fn main() -> i32 {
+    let tmp: i32 = 5 + 3 * 2;
     return -tmp + 40;
 }
 
@@ -9,4 +9,3 @@ fn main() -> i32{
 //     while !*str++ {}
 //     return str as usize - start as usize;
 // }
-``

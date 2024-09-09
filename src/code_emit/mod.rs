@@ -1,7 +1,7 @@
 use crate::{code_gen, util::info};
 pub struct AsmEmission<'a, 'b, W: std::fmt::Write> {
     out: W,
-    info: &'b mut info::CompilerInfo<'a>
+    info: &'b mut info::CompilerInfo<'a>,
 }
 
 impl<'a, 'b, W: std::fmt::Write> AsmEmission<'a, 'b, W> {
@@ -167,7 +167,11 @@ impl<'a, 'b, W: std::fmt::Write> AsmEmission<'a, 'b, W> {
             code_gen::ast::Operand::Pseudo(val) => {
                 panic!("pseudo '{val}' regsiter exists at emission stage!")
             }
-            code_gen::ast::Operand::Stack(val) => write!(self.out, "{}(%rbp)", val as isize - self.info.func.frame_size as isize),
+            code_gen::ast::Operand::Stack(val) => write!(
+                self.out,
+                "{}(%rbp)",
+                val as isize - self.info.func.frame_size as isize
+            ),
         }
     }
 }

@@ -45,6 +45,18 @@ pub enum NumberError {
     InvalidNumLen,
 }
 
+impl std::fmt::Display for NumberError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NumberError::LenTooLong => write!(f, "number is too long"),
+            NumberError::SuffixTooLong => write!(f, "number suffix is too long"),
+            NumberError::InvalidNumLen => {
+                write!(f, "invalid numeric length, this is an internal error...")
+            }
+        }
+    }
+}
+
 impl<'a> Number<'a> {
     pub fn new(str: &'a str, hint: TypeHint) -> Result<Self, NumberError> {
         Ok(Self {

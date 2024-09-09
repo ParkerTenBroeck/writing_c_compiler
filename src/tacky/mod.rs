@@ -3,14 +3,12 @@ pub mod ast;
 use crate::{parser, util};
 
 pub struct TackyGen<'a, 'b> {
-    info: &'b mut util::info::CompilerInfo<'a>
+    info: &'b mut util::info::CompilerInfo<'a>,
 }
 
 impl<'a, 'b> TackyGen<'a, 'b> {
     pub fn new(info: &'b mut util::info::CompilerInfo<'a>) -> Self {
-        Self {
-            info
-        }
+        Self { info }
     }
 
     pub fn ast_to_tacky(&mut self, input: parser::ast::Program<'a>) -> ast::Program<'a> {
@@ -21,10 +19,7 @@ impl<'a, 'b> TackyGen<'a, 'b> {
         prog
     }
 
-    pub fn top_level_to_tacky(
-        &mut self,
-        input: parser::ast::TopLevel<'a>,
-    ) -> ast::TopLevel<'a> {
+    pub fn top_level_to_tacky(&mut self, input: parser::ast::TopLevel<'a>) -> ast::TopLevel<'a> {
         match input {
             parser::ast::TopLevel::FunctionDef(func) => {
                 let mut ins = Vec::new();
@@ -54,10 +49,10 @@ impl<'a, 'b> TackyGen<'a, 'b> {
     fn declaration_to_tacky(
         &mut self,
         ins: &mut Vec<ast::Instruction>,
-        decl: parser::ast::Declaration
-    ){
+        decl: parser::ast::Declaration,
+    ) {
         let var = ast::Val::Var(decl.name.resolve.unwrap());
-        if let Some(expr) = decl.expr{
+        if let Some(expr) = decl.expr {
             let src = self.expression_to_tacky(ins, expr);
             ins.push(ast::Instruction::Copy { src, dest: var })
         }
@@ -202,40 +197,97 @@ impl<'a, 'b> TackyGen<'a, 'b> {
                     parser::ast::BinaryOp::Lt => ast::BinaryOp::Lt,
                     parser::ast::BinaryOp::Lte => ast::BinaryOp::Lte,
 
-                    parser::ast::BinaryOp::Assignment |
-                    parser::ast::BinaryOp::PlusEq |
-                    parser::ast::BinaryOp::MinusEq |
-                    parser::ast::BinaryOp::TimesEq |
-                    parser::ast::BinaryOp::DivideEq |
-                    parser::ast::BinaryOp::ModuloEq |
-                    parser::ast::BinaryOp::ShiftLeftEq |
-                    parser::ast::BinaryOp::ShiftRightEq |
-                    parser::ast::BinaryOp::AndEq |
-                    parser::ast::BinaryOp::OrEq |
-                    parser::ast::BinaryOp::XorEq => {
+                    parser::ast::BinaryOp::Assignment
+                    | parser::ast::BinaryOp::PlusEq
+                    | parser::ast::BinaryOp::MinusEq
+                    | parser::ast::BinaryOp::TimesEq
+                    | parser::ast::BinaryOp::DivideEq
+                    | parser::ast::BinaryOp::ModuloEq
+                    | parser::ast::BinaryOp::ShiftLeftEq
+                    | parser::ast::BinaryOp::ShiftRightEq
+                    | parser::ast::BinaryOp::AndEq
+                    | parser::ast::BinaryOp::OrEq
+                    | parser::ast::BinaryOp::XorEq => {
                         if let parser::ast::Expr::Ident(_) = &*lhs {
                         } else {
                             todo!("unsupported non identifier assignment");
                         }
                         let lhs = self.expression_to_tacky(ins, *lhs);
                         let rhs = self.expression_to_tacky(ins, *rhs);
-                        match op{
-                            parser::ast::BinaryOp::Assignment => ins.push(ast::Instruction::Copy { src: rhs, dest: lhs }),
-                            parser::ast::BinaryOp::PlusEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::Addition, lhs, rhs, dest: lhs }),
-                            parser::ast::BinaryOp::MinusEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::Subtract, lhs, rhs, dest: lhs }),
-                            parser::ast::BinaryOp::TimesEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::Multiply, lhs, rhs, dest: lhs }),
-                            parser::ast::BinaryOp::DivideEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::Divide, lhs, rhs, dest: lhs }),
-                            parser::ast::BinaryOp::ModuloEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::Remainder, lhs, rhs, dest: lhs }),
-                            parser::ast::BinaryOp::ShiftLeftEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::ShiftLeft, lhs, rhs, dest: lhs }),
-                            parser::ast::BinaryOp::ShiftRightEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::ShiftRight, lhs, rhs, dest: lhs }),
-                            parser::ast::BinaryOp::AndEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::BitAnd, lhs, rhs, dest: lhs }),
-                            parser::ast::BinaryOp::OrEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::BitOr, lhs, rhs, dest: lhs }),
-                            parser::ast::BinaryOp::XorEq => ins.push(ast::Instruction::Binary { op: ast::BinaryOp::BitXor, lhs, rhs, dest: lhs }),
+                        match op {
+                            parser::ast::BinaryOp::Assignment => ins.push(ast::Instruction::Copy {
+                                src: rhs,
+                                dest: lhs,
+                            }),
+                            parser::ast::BinaryOp::PlusEq => ins.push(ast::Instruction::Binary {
+                                op: ast::BinaryOp::Addition,
+                                lhs,
+                                rhs,
+                                dest: lhs,
+                            }),
+                            parser::ast::BinaryOp::MinusEq => ins.push(ast::Instruction::Binary {
+                                op: ast::BinaryOp::Subtract,
+                                lhs,
+                                rhs,
+                                dest: lhs,
+                            }),
+                            parser::ast::BinaryOp::TimesEq => ins.push(ast::Instruction::Binary {
+                                op: ast::BinaryOp::Multiply,
+                                lhs,
+                                rhs,
+                                dest: lhs,
+                            }),
+                            parser::ast::BinaryOp::DivideEq => ins.push(ast::Instruction::Binary {
+                                op: ast::BinaryOp::Divide,
+                                lhs,
+                                rhs,
+                                dest: lhs,
+                            }),
+                            parser::ast::BinaryOp::ModuloEq => ins.push(ast::Instruction::Binary {
+                                op: ast::BinaryOp::Remainder,
+                                lhs,
+                                rhs,
+                                dest: lhs,
+                            }),
+                            parser::ast::BinaryOp::ShiftLeftEq => {
+                                ins.push(ast::Instruction::Binary {
+                                    op: ast::BinaryOp::ShiftLeft,
+                                    lhs,
+                                    rhs,
+                                    dest: lhs,
+                                })
+                            }
+                            parser::ast::BinaryOp::ShiftRightEq => {
+                                ins.push(ast::Instruction::Binary {
+                                    op: ast::BinaryOp::ShiftRight,
+                                    lhs,
+                                    rhs,
+                                    dest: lhs,
+                                })
+                            }
+                            parser::ast::BinaryOp::AndEq => ins.push(ast::Instruction::Binary {
+                                op: ast::BinaryOp::BitAnd,
+                                lhs,
+                                rhs,
+                                dest: lhs,
+                            }),
+                            parser::ast::BinaryOp::OrEq => ins.push(ast::Instruction::Binary {
+                                op: ast::BinaryOp::BitOr,
+                                lhs,
+                                rhs,
+                                dest: lhs,
+                            }),
+                            parser::ast::BinaryOp::XorEq => ins.push(ast::Instruction::Binary {
+                                op: ast::BinaryOp::BitXor,
+                                lhs,
+                                rhs,
+                                dest: lhs,
+                            }),
                             _ => unreachable!(),
                         }
 
                         return lhs;
-                    },
+                    }
                 };
 
                 let lhs = self.expression_to_tacky(ins, *lhs);
@@ -244,16 +296,14 @@ impl<'a, 'b> TackyGen<'a, 'b> {
                 ins.push(ast::Instruction::Binary { op, lhs, rhs, dest });
                 dest
             }
-            parser::ast::Expr::Ident(ident) => {
-                ast::Val::Var(ident.resolve.unwrap())
-            },
+            parser::ast::Expr::Ident(ident) => ast::Val::Var(ident.resolve.unwrap()),
         }
     }
-    
+
     fn next_tmp_var(&mut self) -> ast::Val {
         ast::Val::Var(self.info.next_tmp_var())
     }
-    
+
     fn next_tmp_label(&mut self) -> util::info::LabelId {
         self.info.next_tmp_label()
     }
