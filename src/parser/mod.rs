@@ -1,6 +1,6 @@
 use ast::Ident;
 
-use crate::lex::{self, Lexer, Spanned, Token};
+use crate::{lex::{self, Lexer, Spanned, Token}, util::info};
 
 pub mod ast;
 
@@ -11,10 +11,11 @@ pub enum ParserError<'a> {
     ExpectedTokenFoundNone,
 }
 
-pub struct Parser<'a> {
+pub struct Parser<'a, 'b> {
     lex: Lexer<'a>,
     peek: Option<Option<Spanned<Token<'a>>>>,
     errors: Vec<ParserError<'a>>,
+    info: &'b mut info::CompilerInfo<'a>,
 }
 
 macro_rules! tok {
@@ -72,12 +73,13 @@ macro_rules! is_tok {
     };
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(lex: Lexer<'a>) -> Self {
+impl<'a, 'b> Parser<'a, 'b> {
+    pub fn new(lex: Lexer<'a>, info: &'b mut info::CompilerInfo<'a>) -> Self {
         Self {
             lex,
             peek: None,
             errors: Vec::new(),
+            info
         }
     }
 
@@ -138,11 +140,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_function(&mut self) -> Result<ast::FunctionDef<'a>, ()> {
-        expect_tok!(self, Token::Ident("int"))?;
+        expect_tok!(self, Token::Fn)?;
         let ident = expect_tok!(self, Token::Ident(ident) => ident)?;
         expect_tok!(self, Token::LPar)?;
-        expect_tok!(self, Token::Ident("void"))?;
         expect_tok!(self, Token::RPar)?;
+        consume_if!(self,
+            @consume Some(tok!(Token::SmallRightArrow)) => expect_tok!(self, Token::Ident("i32"))?,
+            _ => {}
+        );
         expect_tok!(self, Token::LBrace)?;
         let mut body = Vec::new();
         while !is_tok!(self, Token::RBrace) {
@@ -154,14 +159,15 @@ impl<'a> Parser<'a> {
 
     fn parse_block_item(&mut self) -> Result<ast::BlockItem<'a>, ()> {
         Ok(consume_if!(self,
-            Some(tok!(Token::Ident("int"))) =>  ast::BlockItem::Declaration(self.parse_declaration()?),
+            @consume Some(tok!(Token::Let)) =>  ast::BlockItem::Declaration(self.parse_declaration()?),
             _ => ast::BlockItem::Statement(self.parse_statement()?)
         ))
     }
 
     fn parse_declaration(&mut self) -> Result<ast::Declaration<'a>, ()> {
-        expect_tok!(self, Token::Ident("int"))?;
         let name = expect_tok!(self, Token::Ident(name) => name)?;
+        expect_tok!(self, Token::Colon)?;
+        expect_tok!(self, Token::Ident("i32"))?;
         let expr = consume_if!(self,
             @consume Some(tok!(Token::Assignment)) => Some(self.parse_expression()?),
             _ => None

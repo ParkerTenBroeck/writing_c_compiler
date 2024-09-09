@@ -60,6 +60,7 @@ pub enum Token<'a> {
     ShiftLeftEq,
 
     Fn,
+    Static,
     Return,
     If,
     Else,

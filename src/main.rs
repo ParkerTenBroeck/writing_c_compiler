@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{arg, command, Parser};
+use util::info::Source;
 
 pub mod util;
 pub mod lex;
@@ -18,14 +19,14 @@ struct Cli {
     #[arg(short, long)]
     input: PathBuf,
 
-    #[clap(subcommand)]
+    #[arg(short, long)]
     mode: Option<Mode>,
 
     #[arg(short, long)]
     ops: bool,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::Subcommand)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
 enum Mode {
     /// run the lexer, but stop before parsing
     Lex,
@@ -46,22 +47,24 @@ fn main() -> Result<(), ()> {
     //     mode: None,
     // };
 
-    let input = cli.input;
-    let mut output = input.clone();
+    let input_path = cli.input;
+    let mut output = input_path.clone();
     output.set_extension(".s");
 
-    let pre_processed = std::process::Command::new("gcc")
-        .arg("-E")
-        .arg("-P")
-        .arg(input)
-        .arg("-o-")
-        .output()
-        .unwrap()
-        .stdout;
-    let pre_processed = String::from_utf8(pre_processed).unwrap();
+    // let pre_processed = std::process::Command::new("gcc")
+    //     .arg("-E")
+    //     .arg("-P")
+    //     .arg(input)
+    //     .arg("-o-")
+    //     .output()
+    //     .unwrap()
+    //     .stdout;
+    // let pre_processed = String::from_utf8(pre_processed).unwrap();
+    let pre_processed = std::fs::read_to_string(&input_path).unwrap();
     let input = pre_processed;
 
     let mut info = util::info::CompilerInfo::new();
+    let source = Source { path: input_path.to_str().unwrap_or(""), contents: &input };
 
     // lexing stage
     let lexer = lex::Lexer::new(&input);
@@ -70,11 +73,15 @@ fn main() -> Result<(), ()> {
         for tok in lexer {
             error |= tok.is_err();
             match tok {
-                Ok(_) => todo!(),
-                Err(err) => println!("{err:#?}"),
+                Ok(_) => {},
+                Err(err) => {
+                    let node = info.create_node(source, *err);
+                    info.report_error(node.error(&info, format!("{:?}", node.0)));
+                },
             }
         }
         if error {
+            info.print_errors();
             return Err(());
         } else {
             return Ok(());
@@ -82,7 +89,7 @@ fn main() -> Result<(), ()> {
     };
 
     // parsing stage
-    let ast = parser::Parser::new(lexer).parse();
+    let ast = parser::Parser::new(lexer, &mut info).parse();
     let mut ast = match ast {
         Ok(program) => program,
         Err(errors) => return Err(println!("{errors:#?}")),

@@ -3,15 +3,14 @@ use crate::tacky::ast::*;
 
 
 
+#[derive(Default)]
 pub struct ConstantFolding{
-
     folded: bool,
 }
 
 impl ConstantFolding{
     pub fn new() -> Self{
         ConstantFolding {
-
             folded: false
         }
     }

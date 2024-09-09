@@ -1,3 +1,4 @@
-cargo run -- -i test.c
+
+cargo run -- -i test.rs
 ./a.out
 echo $?

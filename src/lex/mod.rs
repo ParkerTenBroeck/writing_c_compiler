@@ -117,6 +117,7 @@ fn ident(ident: &str) -> Token {
         "while" => Token::While,
         "loop" => Token::Loop,
         "if" => Token::If,
+        "static" => Token::Static,
         o => Token::Ident(o),
     }
 }

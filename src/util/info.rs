@@ -1,3 +1,10 @@
+
+use crate::lex::{Span, Spanned};
+
+use super::error::ErrorNode;
+
+
+
 #[derive(Debug)]
 pub enum Var<'a>{
     Local(usize),
@@ -10,7 +17,28 @@ pub struct LabelId(pub usize);
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct VarId(pub usize);
 
-#[derive(Debug, Default)]
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub struct Node<T>(pub T, pub NodeId);
+
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub struct NodeId(pub(super) usize);
+
+#[derive(Clone, Copy)]
+pub struct Source<'a>{
+    pub path: &'a str,
+    pub contents: &'a str,
+}
+
+impl<'a> std::fmt::Debug for Source<'a>{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Source").field("path", &self.path).finish()
+    }
+}
+
+
+#[derive(Default)]
 pub struct CompilerInfo<'a>{
     pub func: Functioninfo,
     
@@ -18,6 +46,9 @@ pub struct CompilerInfo<'a>{
 
     tmp_labels: usize,
     tmp_vals: usize,
+
+    nodes: Vec<(Span, Source<'a>)>,
+    errors: Vec<ErrorNode<'a>>,
 }
 
 #[derive(Debug, Default)]
@@ -45,4 +76,34 @@ impl<'a> CompilerInfo<'a> {
     pub fn get_var(&self, var: VarId) -> &Var<'a> {
         self.var_map.get(var.0).unwrap()
     }
+
+    pub fn create_node<T>(&mut self, source: Source<'a>, spanned: Spanned<T>) -> Node<T>{
+        let node = NodeId(self.nodes.len());
+        self.nodes.push((spanned.span, source));
+        Node(spanned.val, node)
+    }
+
+    pub fn report_error(&mut self, error: ErrorNode<'a>){
+        self.errors.push(error);
+    }
+    
+    pub fn get_node_source(&self, arg: NodeId) -> (Span, Source<'a>) {
+        self.nodes[arg.0]
+    }
+    
+    pub fn print_errors(&self) {
+       for error in &self.errors{
+            println!("{error}")
+       } 
+    }
+}
+
+#[macro_export]
+macro_rules! error {
+    ($into:expr, $fmt:literal, $args:tt) => {{
+        let args = $crate::util::error::FormatableError{
+            _args: format_args!($fmt, $args),
+        };
+        $into.report_error(args);
+    }};
 }
