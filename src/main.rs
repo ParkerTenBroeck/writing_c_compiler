@@ -3,12 +3,13 @@ use std::path::PathBuf;
 use clap::{arg, command, Parser};
 
 pub mod util;
-pub mod code_emit;
-pub mod code_gen;
 pub mod lex;
 pub mod parser;
 pub mod semanitc;
 pub mod tacky;
+pub mod tacky_opt;
+pub mod code_gen;
+pub mod code_emit;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -19,6 +20,9 @@ struct Cli {
 
     #[clap(subcommand)]
     mode: Option<Mode>,
+
+    #[arg(short, long)]
+    ops: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::Subcommand)]
@@ -96,9 +100,13 @@ fn main() -> Result<(), ()> {
     }
 
     // intermediate representation generation
-    let tacky = tacky::TackyGen::new(&mut info).ast_to_tacky(ast);
+    let mut tacky = tacky::TackyGen::new(&mut info).ast_to_tacky(ast);
     if cli.mode == Some(Mode::Tacky) {
         return Ok(());
+    }
+
+    if cli.ops{
+        tacky_opt::run_opts(&mut tacky);
     }
 
     // code generation

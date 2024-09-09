@@ -7,4 +7,4 @@ int main(void){
 //     const char* start = str;
 //     while(!*str++);
 //     return str - start;
-// }dd
+// }
