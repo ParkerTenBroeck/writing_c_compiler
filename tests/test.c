@@ -1,5 +1,6 @@
 int main(void){
-    return 3 + 2 -3;
+    int tmp = - - - - - - - - - - - - - - - - - - - - -2;
+    return tmp;
 }
 
 

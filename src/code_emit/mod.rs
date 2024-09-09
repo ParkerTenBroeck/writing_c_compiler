@@ -28,7 +28,8 @@ impl<W: std::fmt::Write> AsmEmission<W> {
     fn emit_function(&mut self, func: code_gen::ast::FunctionDef<'_>) -> std::fmt::Result {
         writeln!(
             self.out,
-            ".global {:}\
+            "
+            .global {:}\
                         \n{:}:\
                         \n\tpushq %rbp\
                         \n\tmovq %rsp, %rbp\n",

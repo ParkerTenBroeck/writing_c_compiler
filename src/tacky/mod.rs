@@ -47,7 +47,19 @@ impl<'a, 'b> TackyGen<'a, 'b> {
     ) {
         match blk_item {
             parser::ast::BlockItem::Statement(stmt) => self.statement_to_tacky(ins, stmt),
-            parser::ast::BlockItem::Declaration(_) => todo!(),
+            parser::ast::BlockItem::Declaration(decl) => self.declaration_to_tacky(ins, decl),
+        }
+    }
+
+    fn declaration_to_tacky(
+        &mut self,
+        ins: &mut Vec<ast::Instruction>,
+        decl: parser::ast::Declaration
+    ){
+        let var = ast::Val::Var(decl.name.resolve.unwrap());
+        if let Some(expr) = decl.expr{
+            let src = self.expression_to_tacky(ins, expr);
+            ins.push(ast::Instruction::Copy { src, dest: var })
         }
     }
 
@@ -232,16 +244,17 @@ impl<'a, 'b> TackyGen<'a, 'b> {
                 ins.push(ast::Instruction::Binary { op, lhs, rhs, dest });
                 dest
             }
-            parser::ast::Expr::Ident(ident) => todo!(),
+            parser::ast::Expr::Ident(ident) => {
+                ast::Val::Var(ident.resolve.unwrap())
+            },
         }
     }
     
     fn next_tmp_var(&mut self) -> ast::Val {
-        self.info.func.stack_size += 4;
         ast::Val::Var(self.info.next_tmp_var())
     }
     
-    fn next_tmp_label(&mut self) -> util::info::Label {
+    fn next_tmp_label(&mut self) -> util::info::LabelId {
         self.info.next_tmp_label()
     }
 }

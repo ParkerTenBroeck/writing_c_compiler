@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
-use crate::{parser::ast, util::{self, info::Var}};
+use crate::{parser::ast, util::{self, info::VarId}};
 
 #[derive(Debug)]
 pub enum SemanitcError<'a> {
     VariableNotDefined(&'a str),
+    VariableAlreadyDefined(&'a str),
 }
 
 #[derive(Default)]
 struct ScopeTracker<'a> {
-    map: HashMap<&'a str, Var>,
+    map: HashMap<&'a str, VarId>,
 }
 
 pub struct SemanticAnalysis<'a, 'b> {
@@ -83,9 +84,9 @@ impl<'a, 'b> SemanticAnalysis<'a, 'b> {
     fn resolve_decl(&mut self, ident: &mut ast::Ident<'a>) {
         let var = self.info.next_tmp_var();
 
-        if let Some(_) = self.map.map.insert(ident.name, var) {
+        if self.map.map.insert(ident.name, var).is_some() {
             self.errors
-                .push(SemanitcError::VariableNotDefined(ident.name));
+                .push(SemanitcError::VariableAlreadyDefined(ident.name));
         }
         ident.resolve = Some(var);
     }

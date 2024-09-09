@@ -1,4 +1,4 @@
-use crate::util::info::Label;
+use crate::util::info::LabelId;
 
 #[derive(Debug)]
 pub struct Program<'a>(pub Vec<TopLevel<'a>>);
@@ -40,17 +40,17 @@ pub enum Instruction {
         rhs: Operand,
     },
     Jmp {
-        target: Label,
+        target: LabelId,
     },
     JmpCC {
         cnd: CmpKind,
-        target: Label,
+        target: LabelId,
     },
     SetCC {
         cnd: CmpKind,
         dest: Operand,
     },
-    LocalLabel(Label),
+    LocalLabel(LabelId),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
