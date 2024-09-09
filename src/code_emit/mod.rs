@@ -1,11 +1,12 @@
-use crate::code_gen;
-pub struct AsmEmission<W: std::fmt::Write> {
+use crate::{code_gen, util::info};
+pub struct AsmEmission<'a, 'b, W: std::fmt::Write> {
     out: W,
+    info: &'b mut info::CompilerInfo<'a>
 }
 
-impl<W: std::fmt::Write> AsmEmission<W> {
-    pub fn new(out: W) -> Self {
-        Self { out }
+impl<'a, 'b, W: std::fmt::Write> AsmEmission<'a, 'b, W> {
+    pub fn new(out: W, info: &'b mut info::CompilerInfo<'a>) -> Self {
+        Self { out, info }
     }
     pub fn emit_asm(&mut self, ast: code_gen::ast::Program<'_>) -> std::fmt::Result {
         for top in ast.0 {
@@ -166,7 +167,7 @@ impl<W: std::fmt::Write> AsmEmission<W> {
             code_gen::ast::Operand::Pseudo(val) => {
                 panic!("pseudo '{val}' regsiter exists at emission stage!")
             }
-            code_gen::ast::Operand::Stack(val) => write!(self.out, "-{}(%rbp)", val),
+            code_gen::ast::Operand::Stack(val) => write!(self.out, "{}(%rbp)", val as isize - self.info.func.frame_size as isize),
         }
     }
 }

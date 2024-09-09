@@ -117,7 +117,7 @@ fn main() -> Result<(), ()> {
 
     // code emission
     let mut out = String::new();
-    code_emit::AsmEmission::new(&mut out)
+    code_emit::AsmEmission::new(&mut out, &mut info)
         .emit_asm(code)
         .unwrap();
     std::fs::write(&output, out).unwrap();

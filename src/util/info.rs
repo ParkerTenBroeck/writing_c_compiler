@@ -17,11 +17,12 @@ pub struct CompilerInfo<'a>{
     var_map: Vec<Var<'a>>,
 
     tmp_labels: usize,
+    tmp_vals: usize,
 }
 
 #[derive(Debug, Default)]
 pub struct Functioninfo{
-    temporaries: usize,
+    pub frame_size: usize,
 }
 
 impl<'a> CompilerInfo<'a> {
@@ -35,22 +36,13 @@ impl<'a> CompilerInfo<'a> {
     }
     
     pub fn next_tmp_var(&mut self) -> VarId {
-        self.var_map.push(self.func.next_tmp_var());
+        let tmp = Var::Local(self.tmp_vals);
+        self.tmp_vals += 1;
+        self.var_map.push(tmp);
         VarId(self.var_map.len() - 1)
     }
     
     pub fn get_var(&self, var: VarId) -> &Var<'a> {
         self.var_map.get(var.0).unwrap()
-    }
-}
-
-impl Functioninfo{
-    fn next_tmp_var<'a>(&mut self) -> Var<'a> {
-        self.temporaries += 1;
-        Var::Local(self.temporaries - 1)
-    }
-
-    pub fn get_temporaries(&self) -> usize{
-        self.temporaries
     }
 }

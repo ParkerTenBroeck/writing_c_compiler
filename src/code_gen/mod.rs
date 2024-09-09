@@ -1,6 +1,6 @@
 pub mod ast;
 
-pub fn code_gen<'a, 'b>(info: &'b mut crate::util::info::CompilerInfo<'a>, ast: crate::tacky::ast::Program<'a>) -> self::ast::Program<'a> {
+pub fn code_gen<'a>(info: &mut crate::util::info::CompilerInfo<'a>, ast: crate::tacky::ast::Program<'a>) -> self::ast::Program<'a> {
     let mut ast = gen::AsmGen::new(info).gen(ast);
     register_allocation::RegAllocation::new(info).run_regalloc(&mut ast);
     fixup::AsmFixup::new().run_fixup(&mut ast);
@@ -8,15 +8,20 @@ pub fn code_gen<'a, 'b>(info: &'b mut crate::util::info::CompilerInfo<'a>, ast: 
 }
 
 pub mod register_allocation {
+    use std::collections::HashMap;
+
     use crate::{code_gen::ast::*, util::info::CompilerInfo};
 
     pub struct RegAllocation<'a, 'b> {
-        info: &'b mut CompilerInfo<'a>
+        info: &'b mut CompilerInfo<'a>,
+
+        pseudo_map: HashMap<usize, usize>,
+        used_stack: usize,
     }
 
     impl<'a, 'b> RegAllocation<'a, 'b> {
         pub fn new(info: &'b mut CompilerInfo<'a>) -> Self {
-            Self { info }
+            Self { info, pseudo_map: Default::default(), used_stack: 0 }
         }
 
         pub fn run_regalloc(&mut self, prog: &mut Program<'_>) {
@@ -32,9 +37,12 @@ pub mod register_allocation {
         }
 
         fn regalloc_func(&mut self, func: &mut FunctionDef<'_>) {
+            self.pseudo_map.clear();
+            self.used_stack = 0;
             for ins in &mut func.instructions {
                 self.regalloc_ins(ins);
             }
+            self.info.func.frame_size = self.used_stack;
         }
 
         fn regalloc_ins(&mut self, ins: &mut Instruction) {
@@ -70,7 +78,17 @@ pub mod register_allocation {
 
         fn regalloc_op(&mut self, op: &mut Operand) {
             if let Operand::Pseudo(pseudo) = op {
-                *op = Operand::Stack(*pseudo*4 + 4);
+                match self.pseudo_map.entry(*pseudo){
+                    std::collections::hash_map::Entry::Occupied(val) => {
+                        *op = Operand::Stack(*val.get());
+                    },
+                    std::collections::hash_map::Entry::Vacant(vacent) => {
+                        *op = Operand::Stack(self.used_stack);
+                        vacent.insert(self.used_stack);
+                        // TODO size of pseudo
+                        self.used_stack += 4;
+                    },
+                }
             }
         }
     }
@@ -235,7 +253,7 @@ pub mod gen {
             use code_gen::ast::Register as R;
 
             let mut ins = Vec::new();
-            ins.push(I::AllocStack(self.info.func.get_temporaries() * 4));
+            ins.push(I::AllocStack(self.info.func.frame_size));
             self.gen_instructions(&mut ins, ast.instructions);
 
             if ast.name == "main" {
