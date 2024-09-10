@@ -116,4 +116,14 @@ impl Span {
             len: (end.offset - start.offset) as u32,
         }
     }
+
+    pub fn immediately_after(&self) -> Span {
+        Span {
+            line: self.line,
+            //TODO this assumes ascii
+            col: self.col + self.len,
+            offset: self.offset + self.len,
+            len: 1,
+        }
+    }
 }

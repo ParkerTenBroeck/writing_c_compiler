@@ -1,25 +1,24 @@
 use ast::Ident;
 
 use crate::{
-    lex::{self, Lexer, Spanned, Token},
-    util::info::{self, Node, Source},
+    lex::{Lexer, Span, Token},
+    util::{
+        error::ErrorNode,
+        info::{self, Node, Source},
+    },
 };
 
 pub mod ast;
 
-#[derive(Debug)]
-pub enum ParserError<'a> {
-    LexerError(Spanned<lex::LexError<'a>>),
-    UnexpectedToken(Spanned<Token<'a>>),
-    ExpectedTokenFoundNone,
-}
-
 pub struct Parser<'a, 'b> {
     lex: Lexer<'a>,
     peek: Option<Option<Node<Token<'a>>>>,
-    // errors: Vec<ParserError<'a>>,
     info: &'b mut info::CompilerInfo<'a>,
     source: Source<'a>,
+
+    last_span: Span,
+    curr_span: Span,
+    eof: bool,
 }
 
 macro_rules! tok {
@@ -31,13 +30,55 @@ macro_rules! tok {
 macro_rules! expect_tok {
     ($self:ident, $tok:pat $( => $blk:expr)?) => {
         match $self.next_tok(){
-            Some(tok!($tok)) => {Ok(($($blk)?))}
+            Some(Node($tok, _)) => {Ok(($($blk)?))}
             Some(tok) => {
-                $self.info.report_error(tok.error($self.info, format!("unexpected token")));
+                $self.info.report_error(tok.error($self.info, format!("unexpected token {:?}", tok.0)));
                 Err(())
             }
             None => {
-                $self.info.report_eof_error($self.source, "unexpected EOF".into());
+                $self.info.report_error(ErrorNode::span($self.source.eof(), $self.source, "unexpected EOF".into()));
+                Err(())
+            },
+        }
+    };
+    ($self:ident, $tok:pat, $span:ident $( => $blk:expr)?) => {
+        match $self.next_tok(){
+            Some(Node($tok, $span)) => {Ok(($($blk)?))}
+            Some(tok) => {
+                $self.info.report_error(ErrorNode::span(tok.1, $self.source,  format!("unexpected token {:?}, tok.0")));
+                Err(())
+            }
+            None => {
+                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source, "unexpected EOF".into()));
+                Err(())
+            },
+        }
+    };
+}
+
+macro_rules! expect_tok_after {
+    ($self:ident, $tok:pat $( => $blk:expr)?) => {
+        match $self.next_tok(){
+            Some(Node($tok, _)) => {Ok(($($blk)?))}
+            Some(tok) => {
+                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source,  format!("unexpected token {tok:?}")));
+                Err(())
+            }
+            None => {
+                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source, "unexpected EOF".into()));
+                Err(())
+            },
+        }
+    };
+    ($self:ident, $tok:pat, $span:ident $( => $blk:expr)?) => {
+        match $self.next_tok(){
+            Some(Node($tok, $span)) => {Ok(($($blk)?))}
+            Some(tok) => {
+                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source,  format!("unexpected token {tok:?}")));
+                Err(())
+            }
+            None => {
+                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source, "unexpected EOF".into()));
                 Err(())
             },
         }
@@ -84,6 +125,9 @@ impl<'a, 'b> Parser<'a, 'b> {
             source,
             peek: None,
             info,
+            last_span: Span::default(),
+            curr_span: Span::default(),
+            eof: false,
         }
     }
 
@@ -104,12 +148,18 @@ impl<'a, 'b> Parser<'a, 'b> {
 
     fn next_tok(&mut self) -> Option<Node<Token<'a>>> {
         if let Some(peek) = self.peek.take() {
+            self.last_span = self.curr_span;
+            self.curr_span = peek
+                .as_ref()
+                .map_or(self.source.eof(), |v| self.info.get_node_source(v.1).0);
             return peek;
         }
 
         for tok in &mut self.lex {
             match tok {
                 Ok(ok) => {
+                    self.last_span = self.curr_span;
+                    self.curr_span = ok.span;
                     return Some(self.info.create_node(self.source, ok));
                 }
                 Err(err) => {
@@ -119,6 +169,11 @@ impl<'a, 'b> Parser<'a, 'b> {
                 }
             }
         }
+        if !self.eof {
+            self.last_span = self.curr_span;
+            self.curr_span = self.source.eof();
+        }
+        self.eof = true;
 
         None
     }
@@ -154,18 +209,18 @@ impl<'a, 'b> Parser<'a, 'b> {
     fn parse_function(&mut self) -> Result<ast::FunctionDef<'a>, ()> {
         expect_tok!(self, Token::Fn)?;
         let ident = expect_tok!(self, Token::Ident(ident) => ident)?;
-        expect_tok!(self, Token::LPar)?;
-        expect_tok!(self, Token::RPar)?;
+        expect_tok_after!(self, Token::LPar)?;
+        expect_tok_after!(self, Token::RPar)?;
         consume_if!(self,
-            @consume Some(tok!(Token::SmallRightArrow)) => expect_tok!(self, Token::Ident("i32"))?,
+            @consume Some(tok!(Token::SmallRightArrow)) => expect_tok_after!(self, Token::Ident("i32"))?,
             _ => {}
         );
-        expect_tok!(self, Token::LBrace)?;
+        expect_tok_after!(self, Token::LBrace)?;
         let mut body = Vec::new();
-        while !is_tok!(self, Token::RBrace) {
+        while !is_tok!(self, Token::RBrace) && self.peek_next_tok().is_some() {
             body.push(self.parse_block_item()?);
         }
-        expect_tok!(self, Token::RBrace)?;
+        expect_tok_after!(self, Token::RBrace)?;
         Ok(ast::FunctionDef { name: ident, body })
     }
 
@@ -177,14 +232,14 @@ impl<'a, 'b> Parser<'a, 'b> {
     }
 
     fn parse_declaration(&mut self) -> Result<ast::Declaration<'a>, ()> {
-        let name = expect_tok!(self, Token::Ident(name) => name)?;
-        expect_tok!(self, Token::Colon)?;
-        expect_tok!(self, Token::Ident("i32"))?;
+        let name = expect_tok_after!(self, Token::Ident(name) => name)?;
+        expect_tok_after!(self, Token::Colon)?;
+        expect_tok_after!(self, Token::Ident("i32"))?;
         let expr = consume_if!(self,
             @consume Some(tok!(Token::Assignment)) => Some(self.parse_expression()?),
             _ => None
         );
-        expect_tok!(self, Token::Semicolon)?;
+        expect_tok_after!(self, Token::Semicolon)?;
         Ok(ast::Declaration {
             name: ast::Ident::new(name),
             expr,
@@ -197,11 +252,11 @@ impl<'a, 'b> Parser<'a, 'b> {
             Some(tok!(Token::Semicolon)) => ast::Statement::Empty,
             Some(tok) => ast::Statement::Expression(self.parse_expression()?),
             None => {
-                self.info.report_eof_error(self.source, "expected statement but is at EOF".into());
+                self.info.report_error(ErrorNode::span(self.source.eof(), self.source, "expected statement but is at EOF".into()));
                 return Err(());
             }
         );
-        expect_tok!(self, Token::Semicolon)?;
+        expect_tok_after!(self, Token::Semicolon)?;
         Ok(stmt)
     }
 
@@ -307,11 +362,11 @@ impl<'a, 'b> Parser<'a, 'b> {
             },
 
             @consume Some(tok) => {
-                self.info.report_error(tok.error(self.info, format!("unexpected token in expression")));
+                self.info.report_error(tok.error(self.info, format!("unexpected token {:?}", tok.0)));
                 Err(())
             }
             None => {
-                self.info.report_eof_error(self.source, "unexpected EOF".into());
+                self.info.report_error(ErrorNode::span(self.curr_span.immediately_after(), self.source, "unexpected EOF".into()));
                 Err(())
             }
         )

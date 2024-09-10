@@ -88,8 +88,8 @@ fn main() -> Result<(), ()> {
         Ok(program) => program,
         Err(_) => {
             info.print_errors();
-            return Err(())
-        },
+            return Err(());
+        }
     };
     if cli.mode == Some(Mode::Parse) {
         return Ok(());

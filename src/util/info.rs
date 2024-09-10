@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use crate::lex::{Span, Spanned};
 
 use super::error::ErrorNode;
@@ -18,12 +20,22 @@ pub struct VarId(pub usize);
 pub struct Node<T>(pub T, pub NodeId);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-pub struct NodeId(pub(super) usize);
+pub struct NodeId(NonZeroUsize);
 
 #[derive(Clone, Copy)]
 pub struct Source<'a> {
     pub path: &'a str,
     pub contents: &'a str,
+}
+impl<'a> Source<'a> {
+    pub fn eof(&self) -> Span {
+        Span {
+            line: self.contents.lines().count() as u32,
+            col: self.contents.lines().last().unwrap_or("").len() as u32,
+            offset: self.contents.len() as u32 - 1,
+            len: 1,
+        }
+    }
 }
 
 impl<'a> std::fmt::Debug for Source<'a> {
@@ -72,7 +84,7 @@ impl<'a> CompilerInfo<'a> {
     }
 
     pub fn create_node<T>(&mut self, source: Source<'a>, spanned: Spanned<T>) -> Node<T> {
-        let node = NodeId(self.nodes.len());
+        let node = NodeId(NonZeroUsize::new(self.nodes.len() + 1).unwrap());
         self.nodes.push((spanned.span, source));
         Node(spanned.val, node)
     }
@@ -81,12 +93,8 @@ impl<'a> CompilerInfo<'a> {
         self.errors.push(error);
     }
 
-    pub fn report_eof_error(&mut self, source: Source<'a>, msg: String) {
-        self.errors.push(ErrorNode::eof(source, msg));
-    }
-
     pub fn get_node_source(&self, arg: NodeId) -> (Span, Source<'a>) {
-        self.nodes[arg.0]
+        self.nodes[arg.0.get() - 1]
     }
 
     pub fn print_errors(&self) {

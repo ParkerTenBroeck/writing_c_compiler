@@ -9,7 +9,7 @@ enum ErrorKind {
 }
 
 pub struct ErrorNode<'a> {
-    node: NodeId,
+    node: Option<NodeId>,
     span: Span,
     source: Source<'a>,
     kind: ErrorKind,
@@ -19,13 +19,18 @@ pub struct ErrorNode<'a> {
 impl<'a> ErrorNode<'a> {
     pub fn eof(source: Source<'a>, msg: String) -> ErrorNode<'a> {
         ErrorNode {
-            node: NodeId(0),
-            span: Span {
-                line: source.contents.lines().count() as u32,
-                col: source.contents.lines().last().unwrap_or("").len() as u32,
-                offset: source.contents.len() as u32,
-                len: 1,
-            },
+            node: None,
+            span: source.eof(),
+            source,
+            kind: ErrorKind::Error,
+            msg,
+        }
+    }
+
+    pub fn span(span: Span, source: Source<'a>, msg: String) -> ErrorNode<'a> {
+        ErrorNode {
+            node: None,
+            span,
             source,
             kind: ErrorKind::Error,
             msg,
@@ -37,7 +42,7 @@ impl NodeId {
     pub fn error<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a> {
         let (span, source) = info.get_node_source(*self);
         ErrorNode {
-            node: *self,
+            node: Some(*self),
             span,
             source,
             kind: ErrorKind::Error,
@@ -75,14 +80,17 @@ impl<'a> std::fmt::Display for ErrorNode<'a> {
             .rev()
             .find_map(|c| (c.1 == '\n').then_some(c.0.saturating_add(1)))
             .unwrap_or(0);
-        let to_end = (error_range.end < self.source.contents.len()).then(||&self.source.contents[error_range.end..]).unwrap_or_default();
+        let to_end = (error_range.end < self.source.contents.len())
+            .then(|| &self.source.contents[error_range.end..])
+            .unwrap_or_default();
         let end = error_range.end
             + to_end
                 .chars()
                 .position(|c| c == '\n')
                 .unwrap_or(to_end.len());
         let expanded_range = start..end;
-        let expanded = &self.source.contents[expanded_range.start..expanded_range.end.min(self.source.contents.len())];
+        let expanded = &self.source.contents
+            [expanded_range.start..expanded_range.end.min(self.source.contents.len())];
 
         // this is funny
         let space = "                                                                                                                                                                                                                                                                ";
