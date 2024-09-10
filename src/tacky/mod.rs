@@ -1,6 +1,6 @@
 pub mod ast;
 
-use crate::{parser, util};
+use crate::{parser, util::{self, info::Node}};
 
 pub struct TackyGen<'a, 'b> {
     info: &'b mut util::info::CompilerInfo<'a>,
@@ -19,16 +19,16 @@ impl<'a, 'b> TackyGen<'a, 'b> {
         prog
     }
 
-    pub fn top_level_to_tacky(&mut self, input: parser::ast::TopLevel<'a>) -> ast::TopLevel<'a> {
+    pub fn top_level_to_tacky(&mut self, Node(input, node): Node<parser::ast::TopLevel<'a>>) -> ast::TopLevel<'a> {
         match input {
             parser::ast::TopLevel::FunctionDef(func) => {
                 let mut ins = Vec::new();
 
-                for item in func.body {
+                for item in func.body.0 {
                     self.block_item_to_tacky(&mut ins, item);
                 }
                 ast::TopLevel::FunctionDef(ast::FunctionDef {
-                    name: func.name,
+                    name: func.name.0.ident,
                     instructions: ins,
                 })
             }
@@ -38,7 +38,7 @@ impl<'a, 'b> TackyGen<'a, 'b> {
     pub fn block_item_to_tacky(
         &mut self,
         ins: &mut Vec<ast::Instruction>,
-        blk_item: parser::ast::BlockItem<'a>,
+        Node(blk_item, node): Node<parser::ast::BlockItem<'a>>,
     ) {
         match blk_item {
             parser::ast::BlockItem::Statement(stmt) => self.statement_to_tacky(ins, stmt),

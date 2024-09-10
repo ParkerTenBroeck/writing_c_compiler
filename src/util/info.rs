@@ -113,7 +113,11 @@ impl<'a> CompilerInfo<'a> {
         !self.errors.is_empty()
     }
 
-    pub fn combine_node_spans(&mut self, start: Option<NodeId>, end: Option<NodeId>) -> Option<NodeId> {
+    pub fn combine_node_spans(
+        &mut self,
+        start: Option<NodeId>,
+        end: Option<NodeId>,
+    ) -> Option<NodeId> {
         let start = start?;
         let end = end?;
         let (sp, ss) = self.get_node_source(start);

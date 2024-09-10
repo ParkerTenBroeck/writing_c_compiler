@@ -34,18 +34,9 @@ pub struct Ident<'a> {
     pub resolve: Option<VarId>,
 }
 
-impl<'a> Ident<'a> {
-    pub fn new(name: &'a str) -> Self {
-        Self {
-            name: Node(Path { ident: name }, None),
-            resolve: None,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct Declaration<'a> {
-    pub name: Node<Path<'a>>,
+    pub name: Ident<'a>,
     pub expr: Option<Node<Expr<'a>>>,
 }
 

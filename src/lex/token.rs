@@ -132,13 +132,13 @@ impl Span {
         let oend = other.len + other.offset;
         let offset = self.offset.min(other.offset);
         Span {
-            line: self.line.min(other.len),
+            line: self.line.min(other.line),
             col: self.col.min(other.col),
             offset,
-            len: if send > oend{
-                send-offset
-            }else{
-                oend-offset
+            len: if send > oend {
+                send - offset
+            } else {
+                oend - offset
             },
         }
     }

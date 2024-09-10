@@ -110,7 +110,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             last_span: Span::default(),
             curr_span: Span::default(),
             eof: false,
-            node_stack: Vec::new()
+            node_stack: Vec::new(),
         }
     }
 
@@ -119,11 +119,15 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.node_stack.push(next);
     }
 
-    pub fn end_node_id(&mut self) -> Option<NodeId>{
-        self.info.create_node_id(self.source, self.curr_span.combine(self.node_stack.pop().unwrap_or(self.curr_span)))
+    pub fn end_node_id(&mut self) -> Option<NodeId> {
+        self.info.create_node_id(
+            self.source,
+            self.curr_span
+                .combine(self.node_stack.pop().unwrap_or(self.curr_span)),
+        )
     }
 
-    pub fn end_node<T>(&mut self, node: T) -> Node<T>{
+    pub fn end_node<T>(&mut self, node: T) -> Node<T> {
         Node(node, self.end_node_id())
     }
 
@@ -143,9 +147,10 @@ impl<'a, 'b> Parser<'a, 'b> {
     fn next_tok(&mut self) -> Option<Node<Token<'a>>> {
         if let Some(peek) = self.peek.take() {
             self.last_span = self.curr_span;
-            self.curr_span = peek
-                .as_ref()
-                .map_or(self.source.eof(), |v| v.1.map(|v|self.info.get_node_source(v).0).unwrap_or(self.source.eof()));
+            self.curr_span = peek.as_ref().map_or(self.source.eof(), |v| {
+                v.1.map(|v| self.info.get_node_source(v).0)
+                    .unwrap_or(self.source.eof())
+            });
             return peek;
         }
 
@@ -196,7 +201,7 @@ impl<'a, 'b> Parser<'a, 'b> {
 
     fn parse_impl(&mut self) -> ast::Program<'a> {
         let mut vec = Vec::new();
-        loop{
+        loop {
             self.start_node();
             consume_if!(self,
                 Some(Node(Token::Fn, node)) => {
@@ -220,14 +225,14 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.start_node();
         let ident = expect_tok!(self, Token::Ident(ident), _ => ident, "expected path found {:?}")
             .unwrap_or(EMPTY_IDENT);
-        self.end_node(ast::Path{ ident })
+        self.end_node(ast::Path { ident })
     }
 
-    fn parse_ident(&mut self) -> Node<ast::Ident<'a>> {
-        self.start_node();
-        let ident = expect_tok!(self, Token::Ident(ident), _ => ident, "expected path found {:?}")
-            .unwrap_or(EMPTY_IDENT);
-        self.end_node(ast::Ident::new(ident))
+    fn parse_ident(&mut self) -> ast::Ident<'a> {
+        ast::Ident {
+            name: self.parse_path(),
+            resolve: None,
+        }
     }
 
     fn parse_type(&mut self) {
@@ -243,16 +248,19 @@ impl<'a, 'b> Parser<'a, 'b> {
             @consume Some(tok!(Token::SmallRightArrow)) => self.parse_type()
             _ => {}
         );
-        
+
         self.start_node();
         expect_tok_after!(self, Token::LBrace, _, "expected '{{' found {:?}");
-        
+
         let mut body = Vec::new();
         while !is_tok!(self, Token::RBrace) && self.peek_next_tok().is_some() {
             body.push(self.parse_block_item());
         }
         expect_tok_after!(self, Token::RBrace, _, "expected '}}' found {:?}");
-        ast::FunctionDef { name: ident, body: self.end_node(body) }
+        ast::FunctionDef {
+            name: ident,
+            body: self.end_node(body),
+        }
     }
 
     fn parse_block_item(&mut self) -> Node<ast::BlockItem<'a>> {
@@ -270,7 +278,7 @@ impl<'a, 'b> Parser<'a, 'b> {
     }
 
     fn parse_declaration(&mut self) -> ast::Declaration<'a> {
-        let name = self.parse_path();
+        let name = self.parse_ident();
         self.parse_colon();
         self.parse_type();
         let expr = consume_if!(self,
@@ -278,10 +286,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             _ => None
         );
         self.parse_semicolon();
-        ast::Declaration {
-            name,
-            expr,
-        }
+        ast::Declaration { name, expr }
     }
 
     fn parse_semicolon(&mut self) {
@@ -388,13 +393,13 @@ impl<'a, 'b> Parser<'a, 'b> {
             if op.0.left_to_right() {
                 let rhs = self.parse_expression_13(op.0.precedence() + 1);
                 lhs = self.end_node(ast::Expr::Binary {
-                        op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    })
+                    op,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                })
             } else {
                 let rhs = self.parse_expression_13(op.0.precedence());
-                
+
                 lhs = self.end_node(ast::Expr::Binary {
                     op,
                     lhs: Box::new(lhs),
@@ -438,7 +443,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         ) {
             let expr = self.parse_expression_14();
             return self.end_node(ast::Expr::Unary(op, Box::new(expr)));
-        }else{
+        } else {
             self.node_stack.pop();
         }
 
@@ -468,7 +473,11 @@ impl<'a, 'b> Parser<'a, 'b> {
             @consume Some(tok!(Token::FalseLiteral, node)) => Node(ast::Expr::Constant(ast::Literal::Bool(false)), node),
             @consume Some(tok!(Token::TrueLiteral, node)) => Node(ast::Expr::Constant(ast::Literal::Bool(true)), node),
             @consume Some(tok!(Token::CharLiteral(char), node)) => Node(ast::Expr::Constant(ast::Literal::Char(char)), node),
-            @consume Some(tok!(Token::Ident(name), node)) => Node(ast::Expr::Ident(Ident::new(name)), node),
+            Some(tok!(Token::Ident(_))) => {
+                self.start_node();
+                let ident = self.parse_ident();
+                self.end_node(ast::Expr::Ident(ident))
+            },
 
             @consume Some(tok!(Token::LPar)) => {
                 let expr = self.parse_expression();

@@ -97,7 +97,10 @@ impl<'a> std::fmt::Display for ErrorNode<'a> {
             [expanded_range.start..expanded_range.end.min(self.source.contents.len())];
 
         let line = self.span.line + 1;
-        let space = (((line as usize + expanded.lines().count()) as f32).log10().floor() as u8) as usize + 1;
+        let space = (((line as usize + expanded.lines().count()) as f32)
+            .log10()
+            .floor() as u8) as usize
+            + 1;
 
         writeln!(
             f,
@@ -110,7 +113,12 @@ impl<'a> std::fmt::Display for ErrorNode<'a> {
         writeln!(f, "{BLUE}{BOLD}{: >space$} |", "")?;
         let mut index = expanded_range.start;
         for (i, line_contents) in expanded.split('\n').enumerate() {
-            writeln!(f, "{: >space$} |{RESET} {}", line as usize + i, &line_contents)?;
+            writeln!(
+                f,
+                "{: >space$} |{RESET} {}",
+                line as usize + i,
+                &line_contents
+            )?;
             write!(f, "{BLUE}{BOLD}{: >space$} | ", "")?;
             for c in line_contents.chars() {
                 if error_range.contains(&index) {

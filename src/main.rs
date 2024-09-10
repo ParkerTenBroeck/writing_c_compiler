@@ -9,7 +9,7 @@ pub mod util;
 // pub mod code_gen;
 pub mod lex;
 pub mod parser;
-// pub mod semanitc;
+pub mod semanitc;
 // pub mod tacky;
 // pub mod tacky_opt;
 
@@ -43,7 +43,7 @@ enum Mode {
 
 fn main() -> Result<(), ()> {
     // let cli = Cli::parse();
-    let cli = Cli{
+    let cli = Cli {
         input: "./tests/test.rc".into(),
         ops: false,
         mode: None,
@@ -93,74 +93,21 @@ fn main() -> Result<(), ()> {
             return Err(());
         }
     };
-    Test{info: &mut info}.recurse(ast);
-    info.print_errors();
-    struct Test<'a, 'b>{
-        info: &'b mut info::CompilerInfo<'a>
-    }
-    impl<'a, 'b> Test<'a, 'b>{
-        pub fn recurse(&mut self, program: ast::Program<'a>) {
-            for item in program.0{
-                self.info.report_error(item.error(self.info, "top".into()));
-                
-                let ast::TopLevel::FunctionDef(func) = item.0;
-                self.info.report_error(func.body.error(self.info, "func".into()));
-                for item in func.body.0{
-                    self.info.report_error(item.error(self.info, "block".into()));
-                    match item.0{
-                        ast::BlockItem::Statement(stmt) => {
-                            match stmt{
-                                ast::Statement::Return(expr) => self.expr(expr),
-                                ast::Statement::Expression(expr) => self.expr(expr),
-                                ast::Statement::Empty => {},
-                            }
-                        },
-                        ast::BlockItem::Declaration(decl) => {
-                            self.path(decl.name);
-                            if let Some(expr) = decl.expr{
-                                self.expr(expr)
-                            }
-                        },
-                    }
-                }
-                // func.body
-            }
-        }
-        fn expr(&mut self, expr: info::Node<ast::Expr<'a>>){
-            self.info.report_error(expr.error(self.info, "expr".into()));
-            match expr.0{
-                ast::Expr::Constant(_) => {},
-                ast::Expr::Unary(op, expr) => {
-                    self.info.report_error(op.error(self.info, "op".into()));
-                    self.expr(*expr);
-                },
-                ast::Expr::Binary { op, lhs, rhs } => {
-                    self.info.report_error(op.error(self.info, "op".into()));
-                    self.expr(*lhs);
-                    self.expr(*rhs);
-                },
-                ast::Expr::Ident(_) => {},
-            }
-        }
-        fn path(&mut self, path: info::Node<ast::Path<'a>>){
-            self.info.report_error(path.error(self.info, "node".into()));
-        }
-    }
 
     if cli.mode == Some(Mode::Parse) {
         return Ok(());
     }
-    Ok(())
 
-    // semantic analysis & variable resolution
-    // if let Err(errors) = semanitc::SemanticAnalysis::new(&mut info).resolve_pass(&mut ast) {
-    //     return Err(println!("{errors:#?}"));
-    // }
-    // if cli.mode == Some(Mode::Verify) {
-    //     return Ok(());
-    // }
+    semanitc::SemanticAnalysis::new(&mut info).resolve_pass(&mut ast);
+    if info.has_errors() {
+        info.print_errors();
+        return Err(());
+    }
+    if cli.mode == Some(Mode::Verify) {
+        return Ok(());
+    }
 
-    // // intermediate representation generation
+    // intermediate representation generation
     // let mut tacky = tacky::TackyGen::new(&mut info).ast_to_tacky(ast);
     // if cli.mode == Some(Mode::Tacky) {
     //     return Ok(());
@@ -186,7 +133,5 @@ fn main() -> Result<(), ()> {
     //     .arg(output)
     //     .status()
     //     .unwrap();
-    // Ok(())
+    Ok(())
 }
-
-
