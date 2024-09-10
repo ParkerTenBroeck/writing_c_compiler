@@ -1,8 +1,7 @@
 fn main() -> i32 {
     let tmp: i32 = 5 + 3 * 123;
 
-    let tmp: i32 = 34;
-    return -tmp + 40 + a;
+    return -tmp + 40;
 }
 
 // fn strlen(str: *const char) -> usize {

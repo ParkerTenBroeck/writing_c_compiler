@@ -1,17 +1,15 @@
 use std::path::PathBuf;
 
 use clap::{arg, command, Parser};
-use parser::ast;
-use util::info;
 
 pub mod util;
-// pub mod code_emit;
-// pub mod code_gen;
+pub mod code_emit;
+pub mod code_gen;
 pub mod lex;
 pub mod parser;
 pub mod semanitc;
-// pub mod tacky;
-// pub mod tacky_opt;
+pub mod tacky;
+pub mod tacky_opt;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -42,12 +40,7 @@ enum Mode {
 }
 
 fn main() -> Result<(), ()> {
-    // let cli = Cli::parse();
-    let cli = Cli {
-        input: "./tests/test.rc".into(),
-        ops: false,
-        mode: None,
-    };
+    let cli = Cli::parse();
 
     let input_path = cli.input;
     let mut output = input_path.clone();
@@ -108,30 +101,30 @@ fn main() -> Result<(), ()> {
     }
 
     // intermediate representation generation
-    // let mut tacky = tacky::TackyGen::new(&mut info).ast_to_tacky(ast);
-    // if cli.mode == Some(Mode::Tacky) {
-    //     return Ok(());
-    // }
+    let mut tacky = tacky::TackyGen::new(&mut info).ast_to_tacky(ast);
+    if cli.mode == Some(Mode::Tacky) {
+        return Ok(());
+    }
 
-    // if cli.ops {
-    //     tacky_opt::run_opts(&mut tacky);
-    // }
+    if cli.ops {
+        tacky_opt::run_opts(&mut tacky);
+    }
 
-    // // code generation
-    // let code = code_gen::code_gen(&mut info, tacky);
-    // if cli.mode == Some(Mode::Codegen) {
-    //     return Ok(());
-    // }
+    // code generation
+    let code = code_gen::code_gen(&mut info, tacky);
+    if cli.mode == Some(Mode::Codegen) {
+        return Ok(());
+    }
 
-    // // code emission
-    // let mut out = String::new();
-    // code_emit::AsmEmission::new(&mut out, &mut info)
-    //     .emit_asm(code)
-    //     .unwrap();
-    // std::fs::write(&output, out).unwrap();
-    // std::process::Command::new("gcc")
-    //     .arg(output)
-    //     .status()
-    //     .unwrap();
+    // code emission
+    let mut out = String::new();
+    code_emit::AsmEmission::new(&mut out, &mut info)
+        .emit_asm(code)
+        .unwrap();
+    std::fs::write(&output, out).unwrap();
+    std::process::Command::new("gcc")
+        .arg(output)
+        .status()
+        .unwrap();
     Ok(())
 }

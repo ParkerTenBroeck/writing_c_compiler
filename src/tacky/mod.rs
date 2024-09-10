@@ -78,9 +78,9 @@ impl<'a, 'b> TackyGen<'a, 'b> {
     pub fn expression_to_tacky(
         &mut self,
         ins: &mut Vec<ast::Instruction>,
-        expr: parser::ast::Expr,
+        expr: Node<parser::ast::Expr>,
     ) -> ast::Val {
-        match expr {
+        match expr.0 {
             parser::ast::Expr::Constant(val) => ast::Val::Const(match val {
                 parser::ast::Literal::Number(num) => num.get_num().parse().unwrap(),
                 parser::ast::Literal::String(_) => todo!(),
@@ -97,7 +97,7 @@ impl<'a, 'b> TackyGen<'a, 'b> {
                 let src = self.expression_to_tacky(ins, *expr);
                 let dest = self.next_tmp_var();
                 ins.push(ast::Instruction::Unary {
-                    op: match op {
+                    op: match op.0 {
                         parser::ast::UnaryOp::Neg => ast::UnaryOp::Minus,
                         parser::ast::UnaryOp::BitNot => ast::UnaryOp::BitNot,
                         parser::ast::UnaryOp::LogNot => ast::UnaryOp::LogNot,
@@ -112,7 +112,7 @@ impl<'a, 'b> TackyGen<'a, 'b> {
                 dest
             }
             parser::ast::Expr::Binary { op, lhs, rhs } => {
-                let op = match op {
+                let op = match op.0 {
                     parser::ast::BinaryOp::Addition => ast::BinaryOp::Addition,
                     parser::ast::BinaryOp::Subtract => ast::BinaryOp::Subtract,
                     parser::ast::BinaryOp::Multiply => ast::BinaryOp::Multiply,
@@ -208,13 +208,13 @@ impl<'a, 'b> TackyGen<'a, 'b> {
                     | parser::ast::BinaryOp::AndEq
                     | parser::ast::BinaryOp::OrEq
                     | parser::ast::BinaryOp::XorEq => {
-                        if let parser::ast::Expr::Ident(_) = &*lhs {
+                        if let Node(parser::ast::Expr::Ident(_), _) = &*lhs {
                         } else {
                             todo!("unsupported non identifier assignment");
                         }
                         let lhs = self.expression_to_tacky(ins, *lhs);
                         let rhs = self.expression_to_tacky(ins, *rhs);
-                        match op {
+                        match op.0 {
                             parser::ast::BinaryOp::Assignment => ins.push(ast::Instruction::Copy {
                                 src: rhs,
                                 dest: lhs,

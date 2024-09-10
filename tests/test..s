@@ -7,7 +7,7 @@ main:
 	subq $0, %rsp
 	movl $3, -20(%rbp)
 	movl -20(%rbp), %r11d
-	imull $2, %r11d
+	imull $123, %r11d
 	movl %r11d, -20(%rbp)
 	movl $5, -16(%rbp)
 	movl -20(%rbp), %r10d

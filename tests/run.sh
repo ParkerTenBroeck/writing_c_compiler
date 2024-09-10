@@ -1,4 +1,4 @@
 
-cargo run -- -i test.rs
+cargo run -- -i test.rc
 ./a.out
 echo $?
