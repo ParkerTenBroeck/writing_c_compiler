@@ -4,7 +4,7 @@ use crate::{
     lex::{Lexer, Span, Token},
     util::{
         error::ErrorNode,
-        info::{self, Node, Source},
+        info::{self, Node, NodeId, Source},
     },
 };
 
@@ -19,9 +19,14 @@ pub struct Parser<'a, 'b> {
     last_span: Span,
     curr_span: Span,
     eof: bool,
+
+    node_stack: Vec<Span>,
 }
 
 macro_rules! tok {
+    ($pat:pat, $span:pat) => {
+        Node($pat, $span)
+    };
     ($pat:pat) => {
         Node($pat, _)
     };
@@ -105,7 +110,21 @@ impl<'a, 'b> Parser<'a, 'b> {
             last_span: Span::default(),
             curr_span: Span::default(),
             eof: false,
+            node_stack: Vec::new()
         }
+    }
+
+    pub fn start_node(&mut self) {
+        let next = self.next_span();
+        self.node_stack.push(next);
+    }
+
+    pub fn end_node_id(&mut self) -> Option<NodeId>{
+        self.info.create_node_id(self.source, self.curr_span.combine(self.node_stack.pop().unwrap_or(self.curr_span)))
+    }
+
+    pub fn end_node<T>(&mut self, node: T) -> Node<T>{
+        Node(node, self.end_node_id())
     }
 
     pub fn parse(mut self) -> Result<ast::Program<'a>, ()> {
@@ -126,7 +145,7 @@ impl<'a, 'b> Parser<'a, 'b> {
             self.last_span = self.curr_span;
             self.curr_span = peek
                 .as_ref()
-                .map_or(self.source.eof(), |v| self.info.get_node_source(v.1).0);
+                .map_or(self.source.eof(), |v| v.1.map(|v|self.info.get_node_source(v).0).unwrap_or(self.source.eof()));
             return peek;
         }
 
@@ -176,12 +195,39 @@ impl<'a, 'b> Parser<'a, 'b> {
     }
 
     fn parse_impl(&mut self) -> ast::Program<'a> {
-        ast::Program(vec![ast::TopLevel::FunctionDef(self.parse_function())])
+        let mut vec = Vec::new();
+        loop{
+            self.start_node();
+            consume_if!(self,
+                Some(Node(Token::Fn, node)) => {
+                    let func = self.parse_function();
+                    vec.push(self.end_node(ast::TopLevel::FunctionDef(func)));
+                }
+                @consume Some(tok) => {
+                    self.end_node_id();
+                    self.info.report_error(tok.error(self.info, format!("expected 'fn' 'static' 'const' 'struct' 'enum' 'union' found {:?}", tok.0)));
+                }
+                None => {
+                    self.end_node_id();
+                    break
+                }
+            )
+        }
+        ast::Program(vec)
     }
 
-    fn parse_path(&mut self) -> &'a str {
-        expect_tok!(self, Token::Ident(ident), _ => ident, "expected path found {:?}")
-            .unwrap_or(EMPTY_IDENT)
+    fn parse_path(&mut self) -> Node<ast::Path<'a>> {
+        self.start_node();
+        let ident = expect_tok!(self, Token::Ident(ident), _ => ident, "expected path found {:?}")
+            .unwrap_or(EMPTY_IDENT);
+        self.end_node(ast::Path{ ident })
+    }
+
+    fn parse_ident(&mut self) -> Node<ast::Ident<'a>> {
+        self.start_node();
+        let ident = expect_tok!(self, Token::Ident(ident), _ => ident, "expected path found {:?}")
+            .unwrap_or(EMPTY_IDENT);
+        self.end_node(ast::Ident::new(ident))
     }
 
     fn parse_type(&mut self) {
@@ -197,19 +243,29 @@ impl<'a, 'b> Parser<'a, 'b> {
             @consume Some(tok!(Token::SmallRightArrow)) => self.parse_type()
             _ => {}
         );
+        
+        self.start_node();
         expect_tok_after!(self, Token::LBrace, _, "expected '{{' found {:?}");
+        
         let mut body = Vec::new();
         while !is_tok!(self, Token::RBrace) && self.peek_next_tok().is_some() {
             body.push(self.parse_block_item());
         }
         expect_tok_after!(self, Token::RBrace, _, "expected '}}' found {:?}");
-        ast::FunctionDef { name: ident, body }
+        ast::FunctionDef { name: ident, body: self.end_node(body) }
     }
 
-    fn parse_block_item(&mut self) -> ast::BlockItem<'a> {
+    fn parse_block_item(&mut self) -> Node<ast::BlockItem<'a>> {
+        self.start_node();
         consume_if!(self,
-            @consume Some(tok!(Token::Let)) =>  ast::BlockItem::Declaration(self.parse_declaration()),
-            _ => ast::BlockItem::Statement(self.parse_statement())
+            @consume Some(tok!(Token::Let)) => {
+                let decl = self.parse_declaration();
+                self.end_node(ast::BlockItem::Declaration(decl))
+            },
+            _ => {
+                let smt = self.parse_statement();
+                self.end_node(ast::BlockItem::Statement(smt))
+            }
         )
     }
 
@@ -223,7 +279,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         );
         self.parse_semicolon();
         ast::Declaration {
-            name: ast::Ident::new(name),
+            name,
             expr,
         }
     }
@@ -269,6 +325,7 @@ impl<'a, 'b> Parser<'a, 'b> {
     }
 
     fn parse_statement(&mut self) -> ast::Statement<'a> {
+        let start = self.next_span();
         let stmt = consume_if!(self,
             @consume Some(tok!(Token::Return)) => ast::Statement::Return(self.parse_expression())
             Some(tok!(Token::Semicolon)) => ast::Statement::Empty,
@@ -282,100 +339,136 @@ impl<'a, 'b> Parser<'a, 'b> {
         stmt
     }
 
-    fn parse_expression(&mut self) -> ast::Expr<'a> {
+    fn parse_expression(&mut self) -> Node<ast::Expr<'a>> {
         self.parse_expression_13(0)
     }
 
-    fn parse_expression_13(&mut self, min_prec: usize) -> ast::Expr<'a> {
+    fn parse_expression_13(&mut self, min_prec: usize) -> Node<ast::Expr<'a>> {
+        self.start_node();
         let mut lhs = self.parse_expression_14();
         loop {
             let op = consume_if!(self,
-                @consume Some(tok!(Token::Plus)) if ast::BinaryOp::Addition.precedence() >= min_prec => ast::BinaryOp::Addition,
-                @consume Some(tok!(Token::Minus)) if ast::BinaryOp::Subtract.precedence() >= min_prec => ast::BinaryOp::Subtract,
+                @consume Some(tok!(Token::Plus, node)) if ast::BinaryOp::Addition.precedence() >= min_prec => Node(ast::BinaryOp::Addition, node),
+                @consume Some(tok!(Token::Minus, node)) if ast::BinaryOp::Subtract.precedence() >= min_prec => Node(ast::BinaryOp::Subtract, node),
 
-                @consume Some(tok!(Token::Star)) if ast::BinaryOp::Multiply.precedence() >= min_prec => ast::BinaryOp::Multiply,
-                @consume Some(tok!(Token::Slash)) if ast::BinaryOp::Divide.precedence() >= min_prec => ast::BinaryOp::Divide,
-                @consume Some(tok!(Token::Percent)) if ast::BinaryOp::Remainder.precedence() >= min_prec => ast::BinaryOp::Remainder,
+                @consume Some(tok!(Token::Star, node)) if ast::BinaryOp::Multiply.precedence() >= min_prec => Node(ast::BinaryOp::Multiply, node),
+                @consume Some(tok!(Token::Slash, node)) if ast::BinaryOp::Divide.precedence() >= min_prec => Node(ast::BinaryOp::Divide, node),
+                @consume Some(tok!(Token::Percent, node)) if ast::BinaryOp::Remainder.precedence() >= min_prec => Node(ast::BinaryOp::Remainder, node),
 
-                @consume Some(tok!(Token::ShiftLeft)) if ast::BinaryOp::ShiftLeft.precedence() >= min_prec => ast::BinaryOp::ShiftLeft,
-                @consume Some(tok!(Token::ShiftRight)) if ast::BinaryOp::ShiftRight.precedence() >= min_prec => ast::BinaryOp::ShiftRight,
+                @consume Some(tok!(Token::ShiftLeft, node)) if ast::BinaryOp::ShiftLeft.precedence() >= min_prec => Node(ast::BinaryOp::ShiftLeft, node),
+                @consume Some(tok!(Token::ShiftRight, node)) if ast::BinaryOp::ShiftRight.precedence() >= min_prec => Node(ast::BinaryOp::ShiftRight, node),
 
-                @consume Some(tok!(Token::Equals)) if ast::BinaryOp::Eq.precedence() >= min_prec => ast::BinaryOp::Eq,
-                @consume Some(tok!(Token::NotEquals)) if ast::BinaryOp::Ne.precedence() >= min_prec => ast::BinaryOp::Ne,
+                @consume Some(tok!(Token::Equals, node)) if ast::BinaryOp::Eq.precedence() >= min_prec => Node(ast::BinaryOp::Eq, node),
+                @consume Some(tok!(Token::NotEquals, node)) if ast::BinaryOp::Ne.precedence() >= min_prec => Node(ast::BinaryOp::Ne, node),
 
-                @consume Some(tok!(Token::LessThan)) if ast::BinaryOp::Lt.precedence() >= min_prec => ast::BinaryOp::Lt,
-                @consume Some(tok!(Token::LessThanEq)) if ast::BinaryOp::Lte.precedence() >= min_prec => ast::BinaryOp::Lte,
-                @consume Some(tok!(Token::GreaterThan)) if ast::BinaryOp::Gt.precedence() >= min_prec => ast::BinaryOp::Gt,
-                @consume Some(tok!(Token::GreaterThanEq)) if ast::BinaryOp::Gte.precedence() >= min_prec => ast::BinaryOp::Gte,
+                @consume Some(tok!(Token::LessThan, node)) if ast::BinaryOp::Lt.precedence() >= min_prec => Node(ast::BinaryOp::Lt, node),
+                @consume Some(tok!(Token::LessThanEq, node)) if ast::BinaryOp::Lte.precedence() >= min_prec => Node(ast::BinaryOp::Lte, node),
+                @consume Some(tok!(Token::GreaterThan, node)) if ast::BinaryOp::Gt.precedence() >= min_prec => Node(ast::BinaryOp::Gt, node),
+                @consume Some(tok!(Token::GreaterThanEq, node)) if ast::BinaryOp::Gte.precedence() >= min_prec => Node(ast::BinaryOp::Gte, node),
 
-                @consume Some(tok!(Token::Ampersand)) if ast::BinaryOp::BitAnd.precedence() >= min_prec => ast::BinaryOp::BitAnd,
-                @consume Some(tok!(Token::BitwiseXor)) if ast::BinaryOp::BitXor.precedence() >= min_prec => ast::BinaryOp::BitXor,
-                @consume Some(tok!(Token::BitwiseOr)) if ast::BinaryOp::BitOr.precedence() >= min_prec => ast::BinaryOp::BitOr,
-                @consume Some(tok!(Token::LogicalAnd)) if ast::BinaryOp::LogAnd.precedence() >= min_prec => ast::BinaryOp::LogAnd,
-                @consume Some(tok!(Token::LogicalOr)) if ast::BinaryOp::LogOr.precedence() >= min_prec => ast::BinaryOp::LogOr,
+                @consume Some(tok!(Token::Ampersand, node)) if ast::BinaryOp::BitAnd.precedence() >= min_prec => Node(ast::BinaryOp::BitAnd, node),
+                @consume Some(tok!(Token::BitwiseXor, node)) if ast::BinaryOp::BitXor.precedence() >= min_prec => Node(ast::BinaryOp::BitXor, node),
+                @consume Some(tok!(Token::BitwiseOr, node)) if ast::BinaryOp::BitOr.precedence() >= min_prec => Node(ast::BinaryOp::BitOr, node),
+                @consume Some(tok!(Token::LogicalAnd, node)) if ast::BinaryOp::LogAnd.precedence() >= min_prec => Node(ast::BinaryOp::LogAnd, node),
+                @consume Some(tok!(Token::LogicalOr, node)) if ast::BinaryOp::LogOr.precedence() >= min_prec => Node(ast::BinaryOp::LogOr, node),
 
-                @consume Some(tok!(Token::Assignment)) if ast::BinaryOp::Assignment.precedence() >= min_prec => ast::BinaryOp::Assignment,
-                @consume Some(tok!(Token::PlusEq)) if ast::BinaryOp::PlusEq.precedence() >= min_prec => ast::BinaryOp::PlusEq,
-                @consume Some(tok!(Token::MinusEq)) if ast::BinaryOp::MinusEq.precedence() >= min_prec => ast::BinaryOp::MinusEq,
-                @consume Some(tok!(Token::TimesEq)) if ast::BinaryOp::TimesEq.precedence() >= min_prec => ast::BinaryOp::TimesEq,
-                @consume Some(tok!(Token::DivideEq)) if ast::BinaryOp::DivideEq.precedence() >= min_prec => ast::BinaryOp::DivideEq,
-                @consume Some(tok!(Token::ModuloEq)) if ast::BinaryOp::ModuloEq.precedence() >= min_prec => ast::BinaryOp::ModuloEq,
-                @consume Some(tok!(Token::ShiftLeftEq)) if ast::BinaryOp::ShiftLeftEq.precedence() >= min_prec => ast::BinaryOp::ShiftLeftEq,
-                @consume Some(tok!(Token::ShiftRightEq)) if ast::BinaryOp::ShiftRightEq.precedence() >= min_prec => ast::BinaryOp::ShiftRightEq,
-                @consume Some(tok!(Token::AndEq)) if ast::BinaryOp::AndEq.precedence() >= min_prec => ast::BinaryOp::AndEq,
-                @consume Some(tok!(Token::OrEq)) if ast::BinaryOp::OrEq.precedence() >= min_prec => ast::BinaryOp::OrEq,
-                @consume Some(tok!(Token::XorEq)) if ast::BinaryOp::XorEq.precedence() >= min_prec => ast::BinaryOp::XorEq,
+                @consume Some(tok!(Token::Assignment, node)) if ast::BinaryOp::Assignment.precedence() >= min_prec => Node(ast::BinaryOp::Assignment, node),
+                @consume Some(tok!(Token::PlusEq, node)) if ast::BinaryOp::PlusEq.precedence() >= min_prec => Node(ast::BinaryOp::PlusEq, node),
+                @consume Some(tok!(Token::MinusEq, node)) if ast::BinaryOp::MinusEq.precedence() >= min_prec => Node(ast::BinaryOp::MinusEq, node),
+                @consume Some(tok!(Token::TimesEq, node)) if ast::BinaryOp::TimesEq.precedence() >= min_prec => Node(ast::BinaryOp::TimesEq, node),
+                @consume Some(tok!(Token::DivideEq, node)) if ast::BinaryOp::DivideEq.precedence() >= min_prec => Node(ast::BinaryOp::DivideEq, node),
+                @consume Some(tok!(Token::ModuloEq, node)) if ast::BinaryOp::ModuloEq.precedence() >= min_prec => Node(ast::BinaryOp::ModuloEq, node),
+                @consume Some(tok!(Token::ShiftLeftEq, node)) if ast::BinaryOp::ShiftLeftEq.precedence() >= min_prec => Node(ast::BinaryOp::ShiftLeftEq, node),
+                @consume Some(tok!(Token::ShiftRightEq, node)) if ast::BinaryOp::ShiftRightEq.precedence() >= min_prec => Node(ast::BinaryOp::ShiftRightEq, node),
+                @consume Some(tok!(Token::AndEq, node)) if ast::BinaryOp::AndEq.precedence() >= min_prec => Node(ast::BinaryOp::AndEq, node),
+                @consume Some(tok!(Token::OrEq, node)) if ast::BinaryOp::OrEq.precedence() >= min_prec => Node(ast::BinaryOp::OrEq, node),
+                @consume Some(tok!(Token::XorEq, node)) if ast::BinaryOp::XorEq.precedence() >= min_prec => Node(ast::BinaryOp::XorEq, node),
                 _ => break
             );
-            if op.left_to_right() {
-                let rhs = self.parse_expression_13(op.precedence() + 1);
-                lhs = ast::Expr::Binary {
-                    op,
-                    lhs: Box::new(lhs),
-                    rhs: Box::new(rhs),
-                }
+            if op.0.left_to_right() {
+                let rhs = self.parse_expression_13(op.0.precedence() + 1);
+                lhs = self.end_node(ast::Expr::Binary {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
             } else {
-                let rhs = self.parse_expression_13(op.precedence());
-                lhs = ast::Expr::Binary {
+                let rhs = self.parse_expression_13(op.0.precedence());
+                
+                lhs = self.end_node(ast::Expr::Binary {
                     op,
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
-                }
+                })
             }
+            self.start_node();
         }
+        self.node_stack.pop();
         lhs
     }
 
-    fn parse_expression_14(&mut self) -> ast::Expr<'a> {
-        consume_if!(self,
-            @consume Some(tok!(Token::Minus)) => ast::Expr::Unary(ast::UnaryOp::Neg, Box::new(self.parse_expression_14())),
-            @consume Some(tok!(Token::BitwiseNot)) => ast::Expr::Unary(ast::UnaryOp::BitNot, Box::new(self.parse_expression_14())),
-            @consume Some(tok!(Token::LogicalNot)) => ast::Expr::Unary(ast::UnaryOp::LogNot, Box::new(self.parse_expression_14())),
-
-            @consume Some(tok!(Token::Inc)) => ast::Expr::Unary(ast::UnaryOp::PreInc, Box::new(self.parse_expression_14())),
-            @consume Some(tok!(Token::Dec)) => ast::Expr::Unary(ast::UnaryOp::PreDec, Box::new(self.parse_expression_14())),
-
-            _ => {
-                let mut expr = self.parse_expression_15();
-                loop{
-                    consume_if!(self,
-                        @consume Some(tok!(Token::Inc)) => expr = ast::Expr::Unary(ast::UnaryOp::PostInc, Box::new(expr)),
-                        @consume Some(tok!(Token::Dec)) => expr = ast::Expr::Unary(ast::UnaryOp::PostDec, Box::new(expr)),
-                        _ => return expr
-                    );
-                }
-
-            }
-        )
+    fn next_span(&mut self) -> Span {
+        if let Some(some) = self.next_node_id() {
+            self.info.get_node_source(some).0
+        } else {
+            self.source.eof()
+        }
     }
 
-    fn parse_expression_15(&mut self) -> ast::Expr<'a> {
+    fn next_node_id(&mut self) -> Option<info::NodeId> {
+        self.peek_next_tok()?.1
+    }
+
+    fn create_node<T>(&mut self, span: Span, node: T) -> Node<T> {
+        let id = self.info.create_node_id(self.source, span);
+        Node(node, id)
+    }
+
+    fn parse_expression_14(&mut self) -> Node<ast::Expr<'a>> {
+        self.start_node();
+        if let Some(op) = consume_if!(self,
+            @consume Some(tok!(Token::Minus, node)) => Some(Node(ast::UnaryOp::Neg, node)),
+            @consume Some(tok!(Token::BitwiseNot, node)) => Some(Node(ast::UnaryOp::BitNot, node)),
+            @consume Some(tok!(Token::LogicalNot, node)) => Some(Node(ast::UnaryOp::LogNot, node)),
+
+            @consume Some(tok!(Token::Inc, node)) => Some(Node(ast::UnaryOp::PreInc, node)),
+            @consume Some(tok!(Token::Dec, node)) => Some(Node(ast::UnaryOp::PreDec, node)),
+
+            _ => None
+        ) {
+            let expr = self.parse_expression_14();
+            return self.end_node(ast::Expr::Unary(op, Box::new(expr)));
+        }else{
+            self.node_stack.pop();
+        }
+
+        let mut start = self.next_span();
+        let mut expr = self.parse_expression_15();
+        loop {
+            consume_if!(self,
+                @consume Some(tok!(Token::Inc, node)) =>
+                    expr =self.create_node(
+                        start.combine(self.curr_span),
+                        ast::Expr::Unary(Node(ast::UnaryOp::PostInc, node), Box::new(expr))
+                    ),
+                @consume Some(tok!(Token::Dec, node)) =>
+                    expr = self.create_node(
+                        start.combine(self.curr_span),
+                        ast::Expr::Unary(Node(ast::UnaryOp::PostDec, node), Box::new(expr))
+                    ),
+                _ => return expr
+            );
+            start = self.next_span();
+        }
+    }
+
+    fn parse_expression_15(&mut self) -> Node<ast::Expr<'a>> {
         consume_if!(self,
-            @consume Some(tok!(Token::NumericLiteral(num))) => ast::Expr::Constant(ast::Literal::Number(num)),
-            @consume Some(tok!(Token::FalseLiteral)) => ast::Expr::Constant(ast::Literal::Bool(false)),
-            @consume Some(tok!(Token::TrueLiteral)) => ast::Expr::Constant(ast::Literal::Bool(true)),
-            @consume Some(tok!(Token::CharLiteral(char))) => ast::Expr::Constant(ast::Literal::Char(char)),
-            @consume Some(tok!(Token::Ident(name))) => ast::Expr::Ident(Ident::new(name)),
+            @consume Some(tok!(Token::NumericLiteral(num), node)) => Node(ast::Expr::Constant(ast::Literal::Number(num)), node),
+            @consume Some(tok!(Token::FalseLiteral, node)) => Node(ast::Expr::Constant(ast::Literal::Bool(false)), node),
+            @consume Some(tok!(Token::TrueLiteral, node)) => Node(ast::Expr::Constant(ast::Literal::Bool(true)), node),
+            @consume Some(tok!(Token::CharLiteral(char), node)) => Node(ast::Expr::Constant(ast::Literal::Char(char)), node),
+            @consume Some(tok!(Token::Ident(name), node)) => Node(ast::Expr::Ident(Ident::new(name)), node),
 
             @consume Some(tok!(Token::LPar)) => {
                 let expr = self.parse_expression();
@@ -385,11 +478,11 @@ impl<'a, 'b> Parser<'a, 'b> {
 
             @consume Some(tok) => {
                 self.info.report_error(tok.error(self.info, format!("unexpected token {:?}", tok.0)));
-                EMPTY_EXPR
+                Node(EMPTY_EXPR, None)
             }
             None => {
                 self.info.report_error(ErrorNode::span(self.curr_span.immediately_after(), self.source, "unexpected EOF".into()));
-                EMPTY_EXPR
+                Node(EMPTY_EXPR, None)
             }
         )
     }

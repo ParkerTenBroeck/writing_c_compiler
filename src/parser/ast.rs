@@ -1,7 +1,10 @@
-use crate::{lex::Number, util::info::VarId};
+use crate::{
+    lex::Number,
+    util::info::{Node, VarId},
+};
 
 #[derive(Debug)]
-pub struct Program<'a>(pub Vec<TopLevel<'a>>);
+pub struct Program<'a>(pub Vec<Node<TopLevel<'a>>>);
 
 #[derive(Debug)]
 pub enum TopLevel<'a> {
@@ -9,9 +12,14 @@ pub enum TopLevel<'a> {
 }
 
 #[derive(Debug)]
+pub struct Path<'a> {
+    pub ident: &'a str,
+}
+
+#[derive(Debug)]
 pub struct FunctionDef<'a> {
-    pub name: &'a str,
-    pub body: Vec<BlockItem<'a>>,
+    pub name: Node<Path<'a>>,
+    pub body: Node<Vec<Node<BlockItem<'a>>>>,
 }
 
 #[derive(Debug)]
@@ -22,14 +30,14 @@ pub enum BlockItem<'a> {
 
 #[derive(Debug)]
 pub struct Ident<'a> {
-    pub name: &'a str,
+    pub name: Node<Path<'a>>,
     pub resolve: Option<VarId>,
 }
 
 impl<'a> Ident<'a> {
     pub fn new(name: &'a str) -> Self {
         Self {
-            name,
+            name: Node(Path { ident: name }, None),
             resolve: None,
         }
     }
@@ -37,44 +45,29 @@ impl<'a> Ident<'a> {
 
 #[derive(Debug)]
 pub struct Declaration<'a> {
-    pub name: Ident<'a>,
-    pub expr: Option<Expr<'a>>,
+    pub name: Node<Path<'a>>,
+    pub expr: Option<Node<Expr<'a>>>,
 }
 
 #[derive(Debug)]
 pub enum Statement<'a> {
-    Return(Expr<'a>),
-    Expression(Expr<'a>),
+    Return(Node<Expr<'a>>),
+    Expression(Node<Expr<'a>>),
     Empty,
 }
 
 #[derive(Debug)]
 pub enum Expr<'a> {
     Constant(Literal<'a>),
-    Unary(UnaryOp, Box<Expr<'a>>),
+    Unary(Node<UnaryOp>, Box<Node<Expr<'a>>>),
     Binary {
-        op: BinaryOp,
-        lhs: Box<Expr<'a>>,
-        rhs: Box<Expr<'a>>,
+        op: Node<BinaryOp>,
+        lhs: Box<Node<Expr<'a>>>,
+        rhs: Box<Node<Expr<'a>>>,
     },
 
     Ident(Ident<'a>),
 }
-
-// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-// pub enum AssignmentKind {
-//     Assign,
-//     PlusEq,
-//     MinusEq,
-//     TimesEq,
-//     DivEq,
-//     ModEq,
-//     AndEq,
-//     OrEq,
-//     XorEq,
-//     ShlEq,
-//     ShrEq,
-// }
 
 #[derive(Debug)]
 pub enum UnaryOp {

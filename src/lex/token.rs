@@ -126,4 +126,20 @@ impl Span {
             len: 1,
         }
     }
+
+    pub fn combine(&self, other: Span) -> Span {
+        let send = self.len + self.offset;
+        let oend = other.len + other.offset;
+        let offset = self.offset.min(other.offset);
+        Span {
+            line: self.line.min(other.len),
+            col: self.col.min(other.col),
+            offset,
+            len: if send > oend{
+                send-offset
+            }else{
+                oend-offset
+            },
+        }
+    }
 }

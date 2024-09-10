@@ -55,7 +55,9 @@ impl NodeId {
 
 impl<T> Node<T> {
     pub fn error<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a> {
-        self.1.error(info, msg)
+        self.1
+            .expect("REPLACE THIS WITH SOMETHING BETTER")
+            .error(info, msg)
     }
 }
 const BOLD: &str = "\x1b[1m";
@@ -94,24 +96,22 @@ impl<'a> std::fmt::Display for ErrorNode<'a> {
         let expanded = &self.source.contents
             [expanded_range.start..expanded_range.end.min(self.source.contents.len())];
 
-        // this is funny
-        let space = "                                                                                                                                                                                                                                                                ";
-
         let line = self.span.line + 1;
-        let space = &space[0..((line as f32).log10().floor() as u8) as usize + 1];
+        let space = (((line as usize + expanded.lines().count()) as f32).log10().floor() as u8) as usize + 1;
 
         writeln!(
             f,
-            "{BLUE}{BOLD}\n{space}---> {RESET}{}:{}:{}",
+            "{BLUE}{BOLD}\n{: >space$}---> {RESET}{}:{}:{}",
+            " ",
             self.source.path,
             line,
             self.span.col + 1
         )?;
-        writeln!(f, "{BLUE}{BOLD}{space} |")?;
+        writeln!(f, "{BLUE}{BOLD}{: >space$} |", "")?;
         let mut index = expanded_range.start;
         for (i, line_contents) in expanded.split('\n').enumerate() {
-            writeln!(f, "{} |{RESET} {}", line as usize + i, &line_contents)?;
-            write!(f, "{BLUE}{BOLD}{space} | ")?;
+            writeln!(f, "{: >space$} |{RESET} {}", line as usize + i, &line_contents)?;
+            write!(f, "{BLUE}{BOLD}{: >space$} | ", "")?;
             for c in line_contents.chars() {
                 if error_range.contains(&index) {
                     write!(f, "~")?;

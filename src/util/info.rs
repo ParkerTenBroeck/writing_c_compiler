@@ -17,7 +17,7 @@ pub struct LabelId(pub usize);
 pub struct VarId(pub usize);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-pub struct Node<T>(pub T, pub NodeId);
+pub struct Node<T>(pub T, pub Option<NodeId>);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct NodeId(NonZeroUsize);
@@ -84,9 +84,15 @@ impl<'a> CompilerInfo<'a> {
     }
 
     pub fn create_node<T>(&mut self, source: Source<'a>, spanned: Spanned<T>) -> Node<T> {
-        let node = NodeId(NonZeroUsize::new(self.nodes.len() + 1).unwrap());
+        let node = NonZeroUsize::new(self.nodes.len() + 1).map(NodeId);
         self.nodes.push((spanned.span, source));
         Node(spanned.val, node)
+    }
+
+    pub fn create_node_id(&mut self, source: Source<'a>, span: Span) -> Option<NodeId> {
+        let node = NonZeroUsize::new(self.nodes.len() + 1).map(NodeId);
+        self.nodes.push((span, source));
+        node
     }
 
     pub fn report_error(&mut self, error: ErrorNode<'a>) {
@@ -105,6 +111,18 @@ impl<'a> CompilerInfo<'a> {
 
     pub fn has_errors(&self) -> bool {
         !self.errors.is_empty()
+    }
+
+    pub fn combine_node_spans(&mut self, start: Option<NodeId>, end: Option<NodeId>) -> Option<NodeId> {
+        let start = start?;
+        let end = end?;
+        let (sp, ss) = self.get_node_source(start);
+        let (ep, es) = self.get_node_source(end);
+        if ss.path != es.path {
+            None
+        } else {
+            self.create_node(ss, Spanned::new((), sp.combine(ep))).1
+        }
     }
 }
 
