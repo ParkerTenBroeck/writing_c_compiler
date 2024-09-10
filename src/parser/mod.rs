@@ -27,59 +27,36 @@ macro_rules! tok {
     };
 }
 
+const EMPTY_EXPR: ast::Expr<'static> = ast::Expr::Constant(ast::Literal::Bool(false));
+const EMPTY_IDENT: &str = "__COMPILER__ERROR__PLACE__HOLDER__";
+
 macro_rules! expect_tok {
-    ($self:ident, $tok:pat $( => $blk:expr)?) => {
+    ($self:ident, $tok:pat, $span:pat $( => $blk:expr)?, $err:literal) => {
         match $self.next_tok(){
-            Some(Node($tok, _)) => {Ok(($($blk)?))}
+            Some(Node($tok, $span)) => {Some(($($blk)?))}
             Some(tok) => {
-                $self.info.report_error(tok.error($self.info, format!("unexpected token {:?}", tok.0)));
-                Err(())
+                $self.info.report_error(tok.error($self.info, format!($err, tok.0)));
+                None
             }
             None => {
-                $self.info.report_error(ErrorNode::span($self.source.eof(), $self.source, "unexpected EOF".into()));
-                Err(())
-            },
-        }
-    };
-    ($self:ident, $tok:pat, $span:ident $( => $blk:expr)?) => {
-        match $self.next_tok(){
-            Some(Node($tok, $span)) => {Ok(($($blk)?))}
-            Some(tok) => {
-                $self.info.report_error(ErrorNode::span(tok.1, $self.source,  format!("unexpected token {:?}, tok.0")));
-                Err(())
-            }
-            None => {
-                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source, "unexpected EOF".into()));
-                Err(())
+                $self.info.report_error(ErrorNode::span($self.source.eof(), $self.source, format!($err, "EOF")));
+                None
             },
         }
     };
 }
 
 macro_rules! expect_tok_after {
-    ($self:ident, $tok:pat $( => $blk:expr)?) => {
+    ($self:ident, $tok:pat, $span:pat $( => $blk:expr)?, $err:literal) => {
         match $self.next_tok(){
-            Some(Node($tok, _)) => {Ok(($($blk)?))}
+            Some(Node($tok, $span)) => {Some(($($blk)?))}
             Some(tok) => {
-                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source,  format!("unexpected token {tok:?}")));
-                Err(())
+                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source,  format!($err, tok.0)));
+                None
             }
             None => {
-                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source, "unexpected EOF".into()));
-                Err(())
-            },
-        }
-    };
-    ($self:ident, $tok:pat, $span:ident $( => $blk:expr)?) => {
-        match $self.next_tok(){
-            Some(Node($tok, $span)) => {Ok(($($blk)?))}
-            Some(tok) => {
-                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source,  format!("unexpected token {tok:?}")));
-                Err(())
-            }
-            None => {
-                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source, "unexpected EOF".into()));
-                Err(())
+                $self.info.report_error(ErrorNode::span($self.last_span.immediately_after(), $self.source, format!($err, "EOF")));
+                None
             },
         }
     };
@@ -132,17 +109,15 @@ impl<'a, 'b> Parser<'a, 'b> {
     }
 
     pub fn parse(mut self) -> Result<ast::Program<'a>, ()> {
-        let err = self.parse_impl();
-        while self.next_tok().is_some() {}
-        match err {
-            Ok(ok) => {
-                if !self.info.has_errors() {
-                    Ok(ok)
-                } else {
-                    Err(())
-                }
-            }
-            Err(_) => Err(()),
+        let program = self.parse_impl();
+        while let Some(tok) = self.next_tok() {
+            self.info
+                .report_error(tok.error(self.info, format!("unexpected token {:?}", tok.0)))
+        }
+        if self.info.has_errors() {
+            Err(())
+        } else {
+            Ok(program)
         }
     }
 
@@ -200,72 +175,119 @@ impl<'a, 'b> Parser<'a, 'b> {
         None
     }
 
-    fn parse_impl(&mut self) -> Result<ast::Program<'a>, ()> {
-        Ok(ast::Program(vec![ast::TopLevel::FunctionDef(
-            self.parse_function()?,
-        )]))
+    fn parse_impl(&mut self) -> ast::Program<'a> {
+        ast::Program(vec![ast::TopLevel::FunctionDef(self.parse_function())])
     }
 
-    fn parse_function(&mut self) -> Result<ast::FunctionDef<'a>, ()> {
-        expect_tok!(self, Token::Fn)?;
-        let ident = expect_tok!(self, Token::Ident(ident) => ident)?;
-        expect_tok_after!(self, Token::LPar)?;
-        expect_tok_after!(self, Token::RPar)?;
+    fn parse_path(&mut self) -> &'a str {
+        expect_tok!(self, Token::Ident(ident), _ => ident, "expected path found {:?}")
+            .unwrap_or(EMPTY_IDENT)
+    }
+
+    fn parse_type(&mut self) {
+        expect_tok!(self, Token::Ident("i32"), _, "expected type found {:?}");
+    }
+
+    fn parse_function(&mut self) -> ast::FunctionDef<'a> {
+        expect_tok!(self, Token::Fn, _, "expected 'fn' found {:?}");
+        let ident = self.parse_path();
+        expect_tok_after!(self, Token::LPar, _, "expected '(' found {:?}");
+        expect_tok_after!(self, Token::RPar, _, "expected ')' found {:?}");
         consume_if!(self,
-            @consume Some(tok!(Token::SmallRightArrow)) => expect_tok_after!(self, Token::Ident("i32"))?,
+            @consume Some(tok!(Token::SmallRightArrow)) => self.parse_type()
             _ => {}
         );
-        expect_tok_after!(self, Token::LBrace)?;
+        expect_tok_after!(self, Token::LBrace, _, "expected '{{' found {:?}");
         let mut body = Vec::new();
         while !is_tok!(self, Token::RBrace) && self.peek_next_tok().is_some() {
-            body.push(self.parse_block_item()?);
+            body.push(self.parse_block_item());
         }
-        expect_tok_after!(self, Token::RBrace)?;
-        Ok(ast::FunctionDef { name: ident, body })
+        expect_tok_after!(self, Token::RBrace, _, "expected '}}' found {:?}");
+        ast::FunctionDef { name: ident, body }
     }
 
-    fn parse_block_item(&mut self) -> Result<ast::BlockItem<'a>, ()> {
-        Ok(consume_if!(self,
-            @consume Some(tok!(Token::Let)) =>  ast::BlockItem::Declaration(self.parse_declaration()?),
-            _ => ast::BlockItem::Statement(self.parse_statement()?)
-        ))
+    fn parse_block_item(&mut self) -> ast::BlockItem<'a> {
+        consume_if!(self,
+            @consume Some(tok!(Token::Let)) =>  ast::BlockItem::Declaration(self.parse_declaration()),
+            _ => ast::BlockItem::Statement(self.parse_statement())
+        )
     }
 
-    fn parse_declaration(&mut self) -> Result<ast::Declaration<'a>, ()> {
-        let name = expect_tok_after!(self, Token::Ident(name) => name)?;
-        expect_tok_after!(self, Token::Colon)?;
-        expect_tok_after!(self, Token::Ident("i32"))?;
+    fn parse_declaration(&mut self) -> ast::Declaration<'a> {
+        let name = self.parse_path();
+        self.parse_colon();
+        self.parse_type();
         let expr = consume_if!(self,
-            @consume Some(tok!(Token::Assignment)) => Some(self.parse_expression()?),
+            @consume Some(tok!(Token::Assignment)) => Some(self.parse_expression()),
             _ => None
         );
-        expect_tok_after!(self, Token::Semicolon)?;
-        Ok(ast::Declaration {
+        self.parse_semicolon();
+        ast::Declaration {
             name: ast::Ident::new(name),
             expr,
-        })
+        }
     }
 
-    fn parse_statement(&mut self) -> Result<ast::Statement<'a>, ()> {
+    fn parse_semicolon(&mut self) {
+        match self.next_tok() {
+            Some(Node(Token::Semicolon, _)) => {}
+            Some(Node(tok, _)) => {
+                self.info.report_error(ErrorNode::span(
+                    self.last_span.immediately_after(),
+                    self.source,
+                    format!("expected ';' found {:?}", tok),
+                ));
+            }
+            None => {
+                self.info.report_error(ErrorNode::span(
+                    self.last_span.immediately_after(),
+                    self.source,
+                    "expected ';' found EOF".into(),
+                ));
+            }
+        }
+    }
+
+    fn parse_colon(&mut self) {
+        match self.next_tok() {
+            Some(Node(Token::Colon, _)) => {}
+            Some(Node(tok, _)) => {
+                self.info.report_error(ErrorNode::span(
+                    self.last_span.immediately_after(),
+                    self.source,
+                    format!("expected ';' found {:?}", tok),
+                ));
+            }
+            None => {
+                self.info.report_error(ErrorNode::span(
+                    self.last_span.immediately_after(),
+                    self.source,
+                    "expected ';' found EOF".into(),
+                ));
+            }
+        }
+    }
+
+    fn parse_statement(&mut self) -> ast::Statement<'a> {
         let stmt = consume_if!(self,
-            @consume Some(tok!(Token::Return)) => ast::Statement::Return(self.parse_expression()?)
+            @consume Some(tok!(Token::Return)) => ast::Statement::Return(self.parse_expression())
             Some(tok!(Token::Semicolon)) => ast::Statement::Empty,
-            Some(tok) => ast::Statement::Expression(self.parse_expression()?),
+            Some(tok) => ast::Statement::Expression(self.parse_expression()),
             None => {
                 self.info.report_error(ErrorNode::span(self.source.eof(), self.source, "expected statement but is at EOF".into()));
-                return Err(());
+                return ast::Statement::Empty;
             }
         );
-        expect_tok_after!(self, Token::Semicolon)?;
-        Ok(stmt)
+        self.parse_semicolon();
+        stmt
     }
 
-    fn parse_expression(&mut self) -> Result<ast::Expr<'a>, ()> {
+    fn parse_expression(&mut self) -> ast::Expr<'a> {
         self.parse_expression_13(0)
     }
 
-    fn parse_expression_13(&mut self, min_prec: usize) -> Result<ast::Expr<'a>, ()> {
-        let mut lhs = self.parse_expression_14()?;
+    fn parse_expression_13(&mut self, min_prec: usize) -> ast::Expr<'a> {
+        let mut lhs = self.parse_expression_14();
         loop {
             let op = consume_if!(self,
                 @consume Some(tok!(Token::Plus)) if ast::BinaryOp::Addition.precedence() >= min_prec => ast::BinaryOp::Addition,
@@ -306,14 +328,14 @@ impl<'a, 'b> Parser<'a, 'b> {
                 _ => break
             );
             if op.left_to_right() {
-                let rhs = self.parse_expression_13(op.precedence() + 1)?;
+                let rhs = self.parse_expression_13(op.precedence() + 1);
                 lhs = ast::Expr::Binary {
                     op,
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
                 }
             } else {
-                let rhs = self.parse_expression_13(op.precedence())?;
+                let rhs = self.parse_expression_13(op.precedence());
                 lhs = ast::Expr::Binary {
                     op,
                     lhs: Box::new(lhs),
@@ -321,25 +343,25 @@ impl<'a, 'b> Parser<'a, 'b> {
                 }
             }
         }
-        Ok(lhs)
+        lhs
     }
 
-    fn parse_expression_14(&mut self) -> Result<ast::Expr<'a>, ()> {
+    fn parse_expression_14(&mut self) -> ast::Expr<'a> {
         consume_if!(self,
-            @consume Some(tok!(Token::Minus)) => Ok(ast::Expr::Unary(ast::UnaryOp::Neg, Box::new(self.parse_expression_14()?))),
-            @consume Some(tok!(Token::BitwiseNot)) => Ok(ast::Expr::Unary(ast::UnaryOp::BitNot, Box::new(self.parse_expression_14()?))),
-            @consume Some(tok!(Token::LogicalNot)) => Ok(ast::Expr::Unary(ast::UnaryOp::LogNot, Box::new(self.parse_expression_14()?))),
+            @consume Some(tok!(Token::Minus)) => ast::Expr::Unary(ast::UnaryOp::Neg, Box::new(self.parse_expression_14())),
+            @consume Some(tok!(Token::BitwiseNot)) => ast::Expr::Unary(ast::UnaryOp::BitNot, Box::new(self.parse_expression_14())),
+            @consume Some(tok!(Token::LogicalNot)) => ast::Expr::Unary(ast::UnaryOp::LogNot, Box::new(self.parse_expression_14())),
 
-            @consume Some(tok!(Token::Inc)) => Ok(ast::Expr::Unary(ast::UnaryOp::PreInc, Box::new(self.parse_expression_14()?))),
-            @consume Some(tok!(Token::Dec)) => Ok(ast::Expr::Unary(ast::UnaryOp::PreDec, Box::new(self.parse_expression_14()?))),
+            @consume Some(tok!(Token::Inc)) => ast::Expr::Unary(ast::UnaryOp::PreInc, Box::new(self.parse_expression_14())),
+            @consume Some(tok!(Token::Dec)) => ast::Expr::Unary(ast::UnaryOp::PreDec, Box::new(self.parse_expression_14())),
 
             _ => {
-                let mut expr = self.parse_expression_15()?;
+                let mut expr = self.parse_expression_15();
                 loop{
                     consume_if!(self,
                         @consume Some(tok!(Token::Inc)) => expr = ast::Expr::Unary(ast::UnaryOp::PostInc, Box::new(expr)),
                         @consume Some(tok!(Token::Dec)) => expr = ast::Expr::Unary(ast::UnaryOp::PostDec, Box::new(expr)),
-                        _ => return Ok(expr)
+                        _ => return expr
                     );
                 }
 
@@ -347,27 +369,27 @@ impl<'a, 'b> Parser<'a, 'b> {
         )
     }
 
-    fn parse_expression_15(&mut self) -> Result<ast::Expr<'a>, ()> {
+    fn parse_expression_15(&mut self) -> ast::Expr<'a> {
         consume_if!(self,
-            @consume Some(tok!(Token::NumericLiteral(num))) => Ok(ast::Expr::Constant(ast::Literal::Number(num))),
-            @consume Some(tok!(Token::FalseLiteral)) => Ok(ast::Expr::Constant(ast::Literal::Bool(false))),
-            @consume Some(tok!(Token::TrueLiteral)) => Ok(ast::Expr::Constant(ast::Literal::Bool(true))),
-            @consume Some(tok!(Token::CharLiteral(char))) => Ok(ast::Expr::Constant(ast::Literal::Char(char))),
-            @consume Some(tok!(Token::Ident(name))) => Ok(ast::Expr::Ident(Ident::new(name))),
+            @consume Some(tok!(Token::NumericLiteral(num))) => ast::Expr::Constant(ast::Literal::Number(num)),
+            @consume Some(tok!(Token::FalseLiteral)) => ast::Expr::Constant(ast::Literal::Bool(false)),
+            @consume Some(tok!(Token::TrueLiteral)) => ast::Expr::Constant(ast::Literal::Bool(true)),
+            @consume Some(tok!(Token::CharLiteral(char))) => ast::Expr::Constant(ast::Literal::Char(char)),
+            @consume Some(tok!(Token::Ident(name))) => ast::Expr::Ident(Ident::new(name)),
 
             @consume Some(tok!(Token::LPar)) => {
-                let expr = self.parse_expression()?;
-                expect_tok!(self, Token::RPar)?;
-                Ok(expr)
+                let expr = self.parse_expression();
+                expect_tok!(self, Token::RPar, _, "expected ')' found {:?}");
+                expr
             },
 
             @consume Some(tok) => {
                 self.info.report_error(tok.error(self.info, format!("unexpected token {:?}", tok.0)));
-                Err(())
+                EMPTY_EXPR
             }
             None => {
                 self.info.report_error(ErrorNode::span(self.curr_span.immediately_after(), self.source, "unexpected EOF".into()));
-                Err(())
+                EMPTY_EXPR
             }
         )
     }

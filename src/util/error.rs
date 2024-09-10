@@ -2,12 +2,14 @@ use crate::lex::Span;
 
 use super::info::{CompilerInfo, Node, NodeId, Source};
 
+#[allow(unused)]
 enum ErrorKind {
     Error,
     Warning,
     Info,
 }
 
+#[allow(unused)]
 pub struct ErrorNode<'a> {
     node: Option<NodeId>,
     span: Span,
@@ -101,7 +103,9 @@ impl<'a> std::fmt::Display for ErrorNode<'a> {
         writeln!(
             f,
             "{BLUE}{BOLD}\n{space}---> {RESET}{}:{}:{}",
-            self.source.path, line, self.span.col
+            self.source.path,
+            line,
+            self.span.col + 1
         )?;
         writeln!(f, "{BLUE}{BOLD}{space} |")?;
         let mut index = expanded_range.start;
