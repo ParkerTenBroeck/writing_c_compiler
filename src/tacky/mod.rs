@@ -1,6 +1,9 @@
 pub mod ast;
 
-use crate::{parser, util::{self, info::Node}};
+use crate::{
+    parser,
+    util::{self, info::Node},
+};
 
 pub struct TackyGen<'a, 'b> {
     info: &'b mut util::info::CompilerInfo<'a>,
@@ -19,14 +22,15 @@ impl<'a, 'b> TackyGen<'a, 'b> {
         prog
     }
 
-    pub fn top_level_to_tacky(&mut self, Node(input, node): Node<parser::ast::TopLevel<'a>>) -> ast::TopLevel<'a> {
-        match input {
+    pub fn top_level_to_tacky(
+        &mut self,
+        input: Node<parser::ast::TopLevel<'a>>,
+    ) -> ast::TopLevel<'a> {
+        match input.0 {
             parser::ast::TopLevel::FunctionDef(func) => {
                 let mut ins = Vec::new();
 
-                for item in func.body.0 {
-                    self.block_item_to_tacky(&mut ins, item);
-                }
+                self.block_to_tacky(&mut ins, func.body);
                 ast::TopLevel::FunctionDef(ast::FunctionDef {
                     name: func.name.0.ident,
                     instructions: ins,
@@ -35,12 +39,22 @@ impl<'a, 'b> TackyGen<'a, 'b> {
         }
     }
 
+    pub fn block_to_tacky(
+        &mut self,
+        ins: &mut Vec<ast::Instruction>,
+        block: Node<parser::ast::Block<'a>>,
+    ) {
+        for item in block.0.body {
+            self.block_item_to_tacky(ins, item);
+        }
+    }
+
     pub fn block_item_to_tacky(
         &mut self,
         ins: &mut Vec<ast::Instruction>,
-        Node(blk_item, node): Node<parser::ast::BlockItem<'a>>,
+        blk_item: Node<parser::ast::BlockItem<'a>>,
     ) {
-        match blk_item {
+        match blk_item.0 {
             parser::ast::BlockItem::Statement(stmt) => self.statement_to_tacky(ins, stmt),
             parser::ast::BlockItem::Declaration(decl) => self.declaration_to_tacky(ins, decl),
         }
@@ -72,6 +86,8 @@ impl<'a, 'b> TackyGen<'a, 'b> {
                 self.expression_to_tacky(ins, expr);
             }
             parser::ast::Statement::Empty => {}
+            parser::ast::Statement::Continue { label } => {}
+            parser::ast::Statement::Break { label, expr } => {}
         }
     }
 
@@ -105,6 +121,8 @@ impl<'a, 'b> TackyGen<'a, 'b> {
                         parser::ast::UnaryOp::PreDec => ast::UnaryOp::PreDec,
                         parser::ast::UnaryOp::PostInc => ast::UnaryOp::PostInc,
                         parser::ast::UnaryOp::PostDec => ast::UnaryOp::PostDec,
+                        parser::ast::UnaryOp::Dereference => todo!(),
+                        parser::ast::UnaryOp::Reference => todo!(),
                     },
                     dest,
                     src,
@@ -297,7 +315,36 @@ impl<'a, 'b> TackyGen<'a, 'b> {
                 dest
             }
             parser::ast::Expr::Ident(ident) => ast::Val::Var(ident.resolve.unwrap()),
+
+            parser::ast::Expr::If {
+                cond,
+                label,
+                met,
+                not_met,
+            } => {
+                todo!()
+            }
+            parser::ast::Expr::While { .. } => todo!(),
+            parser::ast::Expr::Block { inner, label } => {
+                // let ret = self.block_expr_to_tacky(ins, inner);
+                // todo!("put block label");
+                // ret
+                todo!()
+            }
+            parser::ast::Expr::Cast { .. } => todo!(),
         }
+    }
+
+    fn block_expr_to_tacky(
+        &mut self,
+        ins: &mut Vec<ast::Instruction>,
+        block: Node<parser::ast::Block<'a>>,
+    ) -> ast::Val {
+        let ret = self.next_tmp_var();
+        for item in block.0.body {
+            self.block_item_to_tacky(ins, item);
+        }
+        ret
     }
 
     fn next_tmp_var(&mut self) -> ast::Val {

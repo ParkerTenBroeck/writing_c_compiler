@@ -139,6 +139,11 @@ fn ident(ident: &str) -> Token {
         "loop" => Token::Loop,
         "if" => Token::If,
         "static" => Token::Static,
+        "as" => Token::As,
+        "mut" => Token::Mut,
+        "const" => Token::Const,
+        "break" => Token::Break,
+        "continue" => Token::Continue,
         o => Token::Ident(o),
     }
 }

@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use clap::{arg, command, Parser};
 
-pub mod util;
 pub mod code_emit;
 pub mod code_gen;
 pub mod lex;
@@ -10,6 +9,7 @@ pub mod parser;
 pub mod semanitc;
 pub mod tacky;
 pub mod tacky_opt;
+pub mod util;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -78,14 +78,11 @@ fn main() -> Result<(), ()> {
     };
 
     // parsing stage
-    let ast = parser::Parser::new(source, &mut info).parse();
-    let mut ast = match ast {
-        Ok(program) => program,
-        Err(_) => {
-            info.print_errors();
-            return Err(());
-        }
-    };
+    let mut ast = parser::Parser::new(source, &mut info).parse();
+    if info.has_errors() {
+        info.print_errors();
+        return Err(());
+    }
 
     if cli.mode == Some(Mode::Parse) {
         return Ok(());

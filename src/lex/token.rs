@@ -68,11 +68,15 @@ pub enum Token<'a> {
     Loop,
     Let,
     For,
+    As,
+    Const,
+    Mut,
+    Break,
+    Continue,
 
     Struct,
     Enum,
     Union,
-    Break,
 
     Label(&'a str),
     Ident(&'a str),

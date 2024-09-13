@@ -41,15 +41,30 @@ impl<'a> ErrorNode<'a> {
 }
 
 impl NodeId {
-    pub fn error<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a> {
+    pub fn err_node<'a>(
+        &self,
+        kind: ErrorKind,
+        info: &CompilerInfo<'a>,
+        msg: String,
+    ) -> ErrorNode<'a> {
         let (span, source) = info.get_node_source(*self);
         ErrorNode {
             node: Some(*self),
             span,
             source,
-            kind: ErrorKind::Error,
+            kind,
             msg,
         }
+    }
+    pub fn error<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a> {
+        self.err_node(ErrorKind::Error, info, msg)
+    }
+
+    pub fn warn<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a> {
+        self.err_node(ErrorKind::Warning, info, msg)
+    }
+    pub fn info<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a> {
+        self.err_node(ErrorKind::Info, info, msg)
     }
 }
 
@@ -58,6 +73,16 @@ impl<T> Node<T> {
         self.1
             .expect("REPLACE THIS WITH SOMETHING BETTER")
             .error(info, msg)
+    }
+    pub fn warn<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a> {
+        self.1
+            .expect("REPLACE THIS WITH SOMETHING BETTER")
+            .warn(info, msg)
+    }
+    pub fn info<'a>(&self, info: &CompilerInfo<'a>, msg: String) -> ErrorNode<'a> {
+        self.1
+            .expect("REPLACE THIS WITH SOMETHING BETTER")
+            .info(info, msg)
     }
 }
 const BOLD: &str = "\x1b[1m";

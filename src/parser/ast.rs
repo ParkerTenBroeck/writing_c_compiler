@@ -11,15 +11,56 @@ pub enum TopLevel<'a> {
     FunctionDef(FunctionDef<'a>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Path<'a> {
     pub ident: &'a str,
 }
 
 #[derive(Debug)]
+pub struct Param<'a> {
+    pub name: Ident<'a>,
+    pub ty: Node<Type<'a>>,
+}
+
+#[derive(Debug)]
 pub struct FunctionDef<'a> {
     pub name: Node<Path<'a>>,
-    pub body: Node<Vec<Node<BlockItem<'a>>>>,
+    pub args: Node<Vec<Node<Param<'a>>>>,
+    pub ret: Option<Node<Type<'a>>>,
+    pub body: Node<Block<'a>>,
+}
+
+#[derive(Debug)]
+pub struct Block<'a> {
+    pub body: Vec<Node<BlockItem<'a>>>,
+}
+
+#[derive(Debug)]
+pub enum Mutability {
+    Const,
+    Mut,
+}
+
+#[derive(Debug)]
+pub enum Type<'a> {
+    Void,
+    I8,
+    I16,
+    I32,
+    I64,
+    U8,
+    U16,
+    U32,
+    U64,
+    Char,
+    Bool,
+    User(Path<'a>),
+    Ptr(Mutability, Box<Node<Type<'a>>>),
+    ConstArr(Box<Node<Type<'a>>>, u64),
+    FnPtr {
+        ret: Option<Box<Node<Type<'a>>>>,
+        args: Node<Vec<Node<Type<'a>>>>,
+    },
 }
 
 #[derive(Debug)]
@@ -37,6 +78,7 @@ pub struct Ident<'a> {
 #[derive(Debug)]
 pub struct Declaration<'a> {
     pub name: Ident<'a>,
+    pub ty: Node<Type<'a>>,
     pub expr: Option<Node<Expr<'a>>>,
 }
 
@@ -45,6 +87,20 @@ pub enum Statement<'a> {
     Return(Node<Expr<'a>>),
     Expression(Node<Expr<'a>>),
     Empty,
+    Continue {
+        label: Option<Node<&'a str>>,
+    },
+    Break {
+        label: Option<Node<&'a str>>,
+        expr: Option<Node<Expr<'a>>>,
+    },
+}
+
+#[derive(Debug)]
+pub enum LoopCond<'a> {
+    Infinite,
+    While(Node<Expr<'a>>),
+    DoWhile(Node<Expr<'a>>),
 }
 
 #[derive(Debug)]
@@ -56,8 +112,26 @@ pub enum Expr<'a> {
         lhs: Box<Node<Expr<'a>>>,
         rhs: Box<Node<Expr<'a>>>,
     },
-
+    Cast {
+        lhs: Box<Node<Expr<'a>>>,
+        to: Node<Type<'a>>,
+    },
     Ident(Ident<'a>),
+    If {
+        label: Option<Node<&'a str>>,
+        cond: Box<Node<Expr<'a>>>,
+        met: Node<Block<'a>>,
+        not_met: Option<Node<Block<'a>>>,
+    },
+    While {
+        label: Option<Node<&'a str>>,
+        cond: Box<LoopCond<'a>>,
+        body: Node<Block<'a>>,
+    },
+    Block {
+        label: Option<Node<&'a str>>,
+        inner: Node<Block<'a>>,
+    },
 }
 
 #[derive(Debug)]
@@ -70,6 +144,9 @@ pub enum UnaryOp {
     PreDec,
     PostInc,
     PostDec,
+
+    Dereference,
+    Reference,
 }
 
 #[derive(Debug)]

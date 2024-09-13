@@ -1,11 +1,30 @@
 fn main() -> i32 {
     let tmp: i32 = 5 + 3 * 123;
+    
+    .test: {
+        tmp = 2;
+        break .test 2;
+    }
+    /*
+    let van = .test: {
+        let tmp: i32 = 2;
+        break .test tmp2;
+    }
+    while true{
+    }
+    loop{
+        while{
+            
+        }{}
+    }
+    */
 
     return -tmp + 40;
 }
-
-// fn strlen(str: *const char) -> usize {
-//     let start: *const char = str;
-//     while !*str++ {}
-//     return str as usize - start as usize;
-// }
+/*
+fn strlen(str: *const char) -> usize {
+    let start: *const char = str;
+    while !*str++ {}
+    return str as usize - start as usize;
+}
+*/
