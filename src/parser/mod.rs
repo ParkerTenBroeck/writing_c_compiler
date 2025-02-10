@@ -7,6 +7,7 @@ use crate::{
 };
 
 pub mod ast;
+pub mod util;
 
 pub struct Parser<'a, 'b> {
     lex: Lexer<'a>,
@@ -602,6 +603,11 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.end_node(ast::Block { body })
     }
 
+    fn parse_if_expr_partial(&mut self) -> ast::Expr<'a> {
+        let cond = self.parse_expression();
+        todo!()
+    }
+
     fn parse_block_expr(&mut self) -> Node<ast::Expr<'a>> {
         self.start_node();
         let label = consume_if!(self,
@@ -616,8 +622,10 @@ impl<'a, 'b> Parser<'a, 'b> {
             }
         );
         consume_if!(self,
-            Some(tok!(Token::If)) => {
-                todo!()
+            @consume Some(tok!(Token::If)) => {
+                self.start_node();
+                let if_expr = self.parse_if_expr_partial();
+                self.end_node(if_expr)
             }
             @consume Some(tok!(Token::Loop)) => {
                 self.start_node();

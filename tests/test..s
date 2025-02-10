@@ -5,22 +5,23 @@ main:
 	movq %rsp, %rbp
 
 	subq $0, %rsp
-	movl $3, -20(%rbp)
-	movl -20(%rbp), %r11d
-	imull $123, %r11d
-	movl %r11d, -20(%rbp)
-	movl $5, -16(%rbp)
-	movl -20(%rbp), %r10d
-	addl %r10d, -16(%rbp)
-	movl -16(%rbp), %r10d
-	movl %r10d, -12(%rbp)
-	movl -12(%rbp), %r10d
-	movl %r10d, -8(%rbp)
-	negl -8(%rbp)
+	movl $0, -8(%rbp)
+.L1:
+	movl $50, %r10d
+	cmpl -8(%rbp), %r10d
+	movl $0, -4(%rbp)
+	movl $50, %r10d
+	cmpl -8(%rbp), %r10d
+	setg -4(%rbp)
+	movl $0, %r10d
+	cmpl -4(%rbp), %r10d
+	je .L0
 	movl -8(%rbp), %r10d
-	movl %r10d, -4(%rbp)
-	addl $40, -4(%rbp)
-	movl -4(%rbp), %eax
+	movl %r10d, -8(%rbp)
+	addl $1, -8(%rbp)
+	jmp .L1
+.L0:
+	movl -8(%rbp), %eax
 	movq %rbp, %rsp
 	popq %rbp
 	ret

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    parser::ast::{self, Path, Type},
+    parser::ast::{self, Path},
     util::{
         self,
         info::{Node, NodeId, VarId},
@@ -19,12 +19,12 @@ struct ScopeTracker<'a> {
     map: Vec<HashMap<Path<'a>, (VarId, NodeId)>>,
 }
 
-impl<'a> ScopeTracker<'a>{
-    pub fn enter_scope(&mut self){
+impl<'a> ScopeTracker<'a> {
+    pub fn enter_scope(&mut self) {
         self.map.push(HashMap::new())
     }
 
-    pub fn exit_scope(&mut self){
+    pub fn exit_scope(&mut self) {
         self.map.pop();
     }
 }
@@ -77,9 +77,7 @@ impl<'a, 'b> SemanticAnalysis<'a, 'b> {
         match stmt {
             ast::Statement::Return(expr) => self.resolve_expr(expr),
             ast::Statement::Expression(expr) => self.resolve_expr(expr),
-            ast::Statement::Continue { label} => {
-                
-            }
+            ast::Statement::Continue { label } => {}
             ast::Statement::Break { label, expr } => {
                 if let Some(expr) = expr {
                     self.resolve_expr(expr)
@@ -145,7 +143,7 @@ impl<'a, 'b> SemanticAnalysis<'a, 'b> {
                 self.map.enter_scope();
                 self.resolve_block(inner);
                 self.map.exit_scope();
-            },
+            }
             ast::Expr::Cast { .. } => todo!(),
         }
     }

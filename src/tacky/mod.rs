@@ -63,7 +63,7 @@ impl<'a, 'b> TackyGen<'a, 'b> {
     fn declaration_to_tacky(
         &mut self,
         ins: &mut Vec<ast::Instruction>,
-        decl: parser::ast::Declaration,
+        decl: parser::ast::Declaration<'a>,
     ) {
         let var = ast::Val::Var(decl.name.resolve.unwrap());
         if let Some(expr) = decl.expr {
@@ -75,7 +75,7 @@ impl<'a, 'b> TackyGen<'a, 'b> {
     pub fn statement_to_tacky(
         &mut self,
         ins: &mut Vec<ast::Instruction>,
-        smt: parser::ast::Statement,
+        smt: parser::ast::Statement<'a>,
     ) {
         match smt {
             parser::ast::Statement::Return(expr) => {
@@ -86,15 +86,15 @@ impl<'a, 'b> TackyGen<'a, 'b> {
                 self.expression_to_tacky(ins, expr);
             }
             parser::ast::Statement::Empty => {}
-            parser::ast::Statement::Continue { label } => {}
-            parser::ast::Statement::Break { label, expr } => {}
+            parser::ast::Statement::Continue { .. } => todo!(),
+            parser::ast::Statement::Break { .. } => todo!(),
         }
     }
 
     pub fn expression_to_tacky(
         &mut self,
         ins: &mut Vec<ast::Instruction>,
-        expr: Node<parser::ast::Expr>,
+        expr: Node<parser::ast::Expr<'a>>,
     ) -> ast::Val {
         match expr.0 {
             parser::ast::Expr::Constant(val) => ast::Val::Const(match val {
@@ -322,14 +322,70 @@ impl<'a, 'b> TackyGen<'a, 'b> {
                 met,
                 not_met,
             } => {
-                todo!()
+                let ret = self.next_tmp_var();
+                let cond = self.expression_to_tacky(ins, *cond);
+                let false_target = self.next_tmp_label();
+                ins.push(ast::Instruction::JumpIfZero {
+                    cond,
+                    target: false_target,
+                });
+                {
+                    let val = self.block_expr_to_tacky(ins, met);
+                    ins.push(ast::Instruction::Copy {
+                        src: val,
+                        dest: ret,
+                    });
+                }
+                ins.push(ast::Instruction::LocalLabel(false_target));
+                if let Some(val) = not_met {
+                    let val = self.block_expr_to_tacky(ins, val);
+                    ins.push(ast::Instruction::Copy {
+                        src: val,
+                        dest: ret,
+                    });
+                }
+                ret
             }
-            parser::ast::Expr::While { .. } => todo!(),
+            parser::ast::Expr::While { body, cond, label } => {
+                let ret = self.next_tmp_var();
+                match *cond {
+                    parser::ast::LoopCond::Infinite => {
+                        let top_target = self.next_tmp_label();
+                        ins.push(ast::Instruction::LocalLabel(top_target));
+                        self.block_expr_to_tacky(ins, body);
+                        ins.push(ast::Instruction::Jump { target: top_target });
+                    }
+                    parser::ast::LoopCond::While(cond) => {
+                        let false_target = self.next_tmp_label();
+                        let top_target = self.next_tmp_label();
+
+                        ins.push(ast::Instruction::LocalLabel(top_target));
+                        let cond = self.expression_to_tacky(ins, cond);
+                        ins.push(ast::Instruction::JumpIfZero {
+                            cond,
+                            target: false_target,
+                        });
+                        self.block_expr_to_tacky(ins, body);
+                        ins.push(ast::Instruction::Jump { target: top_target });
+                        ins.push(ast::Instruction::LocalLabel(false_target));
+                    }
+                    parser::ast::LoopCond::DoWhile(cond) => {
+                        let top_target = self.next_tmp_label();
+                        ins.push(ast::Instruction::LocalLabel(top_target));
+                        self.block_expr_to_tacky(ins, body);
+                        let cond = self.expression_to_tacky(ins, cond);
+                        ins.push(ast::Instruction::JumpIfNotZero {
+                            target: top_target,
+                            cond,
+                        });
+                    }
+                }
+                ret
+            }
             parser::ast::Expr::Block { inner, label } => {
-                // let ret = self.block_expr_to_tacky(ins, inner);
+                let ret = self.block_expr_to_tacky(ins, inner);
                 // todo!("put block label");
-                // ret
-                todo!()
+                ret
             }
             parser::ast::Expr::Cast { .. } => todo!(),
         }

@@ -5,10 +5,10 @@ use clap::{arg, command, Parser};
 pub mod code_emit;
 pub mod code_gen;
 pub mod lex;
+pub mod opt;
 pub mod parser;
 pub mod semanitc;
 pub mod tacky;
-pub mod tacky_opt;
 pub mod util;
 
 #[derive(Parser)]
@@ -104,7 +104,7 @@ fn main() -> Result<(), ()> {
     }
 
     if cli.ops {
-        tacky_opt::run_opts(&mut tacky);
+        opt::tacky::run_opts(&mut tacky);
     }
 
     // code generation

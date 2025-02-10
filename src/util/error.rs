@@ -3,7 +3,7 @@ use crate::lex::Span;
 use super::info::{CompilerInfo, Node, NodeId, Source};
 
 #[allow(unused)]
-enum ErrorKind {
+pub enum ErrorKind {
     Error,
     Warning,
     Info,
